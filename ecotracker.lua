@@ -114,11 +114,9 @@ end
 function widget:DrawScreen()
     local mouseX, mouseY = Spring.GetMouseState()
 
-    gl.Text("Energy Produced: " .. totalEnergyProduced, 400, 300, 16, "o")
-    gl.Text("GameSeconds: " .. lastGameUpdate, 400, 275, 16, "o")
-    -- gl.Text("selectedunits: " .. selectedUnitTableToString(selectedUnits), 400, 250, 16, "o")
-    gl.Text("economy metal value: " .. cachedTotals[0].economyBuildings, 400, 200, 16, "o")
     gl.Text(mouseX .." ".. mouseY, 400, 150, 16,"o")
+
+
 
     local startPos = 1200
     local textSpacing = 0
@@ -368,6 +366,7 @@ function removeFromUnitCache(teamID, unitID, unitDefID)
                     cachedTotals[teamID][cache] = cachedTotals[teamID][cache] - valueToRemove
                 end
                 unitCache[teamID][cache][unitID] = nil
+                -- unitModelCache[Spring.GetUnitDefID(unitID)] = nil
             else
                 Spring.Echo(string.format("WARNING: removeFromUnitCache(), unitID %d not in unit cache", unitID))
             end
@@ -411,7 +410,7 @@ end
 function buildUnitDefs()
 
     local function isEnergyProducer(unitDefId, unitDef)
-        return unitDef.energyMake > 0
+        return unitDef.energyMake >= 0 or (unitDef.customParams.energyconv_capacity and unitDef.customParams.energyconv_efficiency)
     end
     local function isCommander(unitDefID, unitDef)
         return unitDef.customParams.iscommander
@@ -462,7 +461,7 @@ function buildUnitDefs()
 
     for unitDefID, unitDef in ipairs(UnitDefs) do
         if isEnergyProducer(unitDefID,unitDef) then
-            unitDefsToTrack.energyProducerDefs[unitDefID] = {e = unitDef.energyMake}
+            unitDefsToTrack.energyProducerDefs[unitDefID] = {energyMake = unitDef.energyMake}
         end
         if isCommander(unitDefID, unitDef) then
             unitDefsToTrack.commanderUnitDefs[unitDefID] = true

@@ -15,13 +15,10 @@ local cachedTotals = {}
 local unitDefsToTrack = {}
 local unitModelCache = {}
 local totalByUnitDef = {}
--- -- --
 local gaiaID = Spring.GetGaiaTeamID()
 local gaiaAllyID = select(6, Spring.GetTeamInfo(gaiaID, false))
 
 local options = {
-    -- note: metrics table is built from metricsAvailable during configuration load
-
     useMetalEquivalent70 = false,
     subtractReclaimFromIncome = false,
 }
@@ -45,7 +42,7 @@ function widget:Update()
     end
     lastGameUpdate = gs
 
-    calculateUnitData(unitCache,0,"economyBuildings")
+    calculateUnitData(unitCache,0,"energyProducingUnits")
     -- calculateUnitData(unitCache,0,"utilityUnits")
     -- calculateUnitData(unitCache,0,"reclaimerUnitDefs")
     
@@ -207,6 +204,8 @@ function buildUnitCache()
     unitCache = {}
     cachedTotals = {}
 
+    unitCache.energyProducingUnits = {}
+
     unitCache.reclaimerUnits = {
         add = nil,
         update = function(unitID, value)
@@ -276,6 +275,8 @@ function buildUnitCache()
             for _, teamID in ipairs(teamList) do
                 unitCache[teamID] = {}
                 cachedTotals[teamID] = {}
+                unitCache[teamID].energyProducingUnits = {}
+                cachedTotals[teamID].energyProducingUnits = 0
                 unitCache[teamID].reclaimerUnits = {}
                 cachedTotals[teamID].reclaimerUnits = 0
                 unitCache[teamID].energyConverters = {}
@@ -321,6 +322,10 @@ function addToUnitCache(teamID, unitID, unitDefID)
         end
     end
 
+    if unitDefsToTrack.energyProducerDefs[unitDefID] then
+        addToUnitCacheInternal("energyProducingUnits",teamID,unitID,
+                        unitDefsToTrack.energyProducerDefs[unitDefID])
+    end
     if unitDefsToTrack.reclaimerUnitDefs[unitDefID] then
         addToUnitCacheInternal("reclaimerUnits", teamID, unitID,
                        unitDefsToTrack.reclaimerUnitDefs[unitDefID])
@@ -369,6 +374,10 @@ function removeFromUnitCache(teamID, unitID, unitDefID)
         end
     end
 
+    if unitDefsToTrack.energyProducerDefs[unitDefID] then
+        removeFromUnitCacheInternal("energyProducingUnits", teamID, unitID,
+                       unitDefsToTrack.energyProducerDefs[unitDefID])
+    end
     if unitDefsToTrack.reclaimerUnitDefs[unitDefID] then
         removeFromUnitCacheInternal("reclaimerUnits", teamID, unitID,
                        unitDefsToTrack.reclaimerUnitDefs[unitDefID])
@@ -400,6 +409,10 @@ function removeFromUnitCache(teamID, unitID, unitDefID)
 end
 
 function buildUnitDefs()
+
+    local function isEnergyProducer(unitDefId, unitDef)
+        return unitDef.energyMake > 0
+    end
     local function isCommander(unitDefID, unitDef)
         return unitDef.customParams.iscommander
     end
@@ -434,6 +447,7 @@ function buildUnitDefs()
     end
 
     unitDefsToTrack = {}
+    unitDefsToTrack.energyProducerDefs = {}
     unitDefsToTrack.commanderUnitDefs = {}
     unitDefsToTrack.reclaimerUnitDefs = {}
     unitDefsToTrack.energyConverterDefs = {}
@@ -443,7 +457,13 @@ function buildUnitDefs()
     unitDefsToTrack.utilityUnitDefs = {}
     unitDefsToTrack.economyBuildingDefs = {}
 
+    -- modify this to take in units that produce energy and metal 
+    -- track metalmake/energymake
+
     for unitDefID, unitDef in ipairs(UnitDefs) do
+        if isEnergyProducer(unitDefID,unitDef) then
+            unitDefsToTrack.energyProducerDefs[unitDefID] = {e = unitDef.energyMake}
+        end
         if isCommander(unitDefID, unitDef) then
             unitDefsToTrack.commanderUnitDefs[unitDefID] = true
         end

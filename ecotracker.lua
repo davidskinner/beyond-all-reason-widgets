@@ -14,6 +14,9 @@ local unitCache = {}
 local cachedTotals = {}
 local unitDefsToTrack = {}
 local unitModelCache = {}
+unitModelCache.unitdefs = {}
+unitModelCache.te = 0
+unitModelCache.tm = 0
 local totalByUnitDef = {}
 local gaiaID = Spring.GetGaiaTeamID()
 local gaiaAllyID = select(6, Spring.GetTeamInfo(gaiaID, false))
@@ -54,7 +57,7 @@ rx = 50
 ry = 350
 function widget:MousePress(x, y, button)
     if is_point_in_box(x,y,lx,ly,rx,ry) then
-        for udid, value in pairs(unitModelCache) do
+        for udid, value in pairs(unitModelCache.unitdefs) do
             value.totalEnergyProduced = 0
             value.totalMetalProduced = 0
         end
@@ -63,7 +66,7 @@ end
 
 function calculateUnitData(unitCache, teamID, cacheName)
 
-    for key, value in pairs(unitModelCache) do
+    for key, value in pairs(unitModelCache.unitdefs) do
         value.count = 0
         value.lastSecondEnergyProduced = 0
         value.lastSecondMetalProduced = 0
@@ -77,8 +80,8 @@ function calculateUnitData(unitCache, teamID, cacheName)
             -- local unitName = unitData.unitName
             local metalMake, metalUse, energyMake, energyUse = Spring.GetUnitResources(unitID)
             -- Initialize result entry for this unit type
-            if not unitModelCache[udid] then
-                unitModelCache[udid] = {
+            if not unitModelCache.unitdefs[udid] then
+                unitModelCache.unitdefs[udid] = {
                     name = UnitDefs[udid]["translatedHumanName"],
                     count = 0,
                     totalEnergyProduced = 0,
@@ -87,11 +90,13 @@ function calculateUnitData(unitCache, teamID, cacheName)
                     lastSecondMetalProduced = 0
                 }
             else
-                unitModelCache[udid].count = unitModelCache[udid].count + 1
-                unitModelCache[udid].totalEnergyProduced = unitModelCache[udid].totalEnergyProduced + energyMake
-                unitModelCache[udid].totalMetalProduced = unitModelCache[udid].totalMetalProduced + metalMake
-                unitModelCache[udid].lastSecondEnergyProduced = unitModelCache[udid].lastSecondEnergyProduced + energyMake
-                unitModelCache[udid].lastSecondMetalProduced = unitModelCache[udid].lastSecondMetalProduced + metalMake
+                unitModelCache.unitdefs[udid].count = unitModelCache.unitdefs[udid].count + 1
+                unitModelCache.unitdefs[udid].totalEnergyProduced = unitModelCache.unitdefs[udid].totalEnergyProduced + energyMake
+                unitModelCache.unitdefs[udid].totalMetalProduced = unitModelCache.unitdefs[udid].totalMetalProduced + metalMake
+                unitModelCache.unitdefs[udid].lastSecondEnergyProduced = unitModelCache.unitdefs[udid].lastSecondEnergyProduced + energyMake
+                unitModelCache.unitdefs[udid].lastSecondMetalProduced = unitModelCache.unitdefs[udid].lastSecondMetalProduced + metalMake
+                unitModelCache.te = unitModelCache.te + energyMake
+                unitModelCache.tm = unitModelCache.tm + metalMake
             end
 
         end
@@ -115,28 +120,30 @@ function widget:DrawScreen()
     local mouseX, mouseY = Spring.GetMouseState()
 
     gl.Text(mouseX .." ".. mouseY, 400, 150, 16,"o")
+    gl.Text("total E: "..unitModelCache.te, 400, 200, 16,"o")
+    gl.Text("total M: "..unitModelCache.tm, 400, 250, 16,"o")
 
 
 
     local startPos = 1200
     local textSpacing = 0
-
+    local buffer = 5
     local function printecobuilding(prefix, value)
-        gl.Text( prefix .. value, 1700, startPos - textSpacing, 16, "o")
+        gl.Text( prefix .. value, 2000, startPos - textSpacing, 16, "o")
         textSpacing = textSpacing + 25
-        
     end
 
     -- draw e structure diagnostics
     if unitModelCache then
-        for unitDef, unitInfo in pairs(unitModelCache) do
-            printecobuilding("||| Name:", unitInfo.name)
+        for unitDef, unitInfo in pairs(unitModelCache.unitdefs) do
+            printecobuilding("Name:", unitInfo.name)
             printecobuilding("UnitDefId:", unitDef)
             printecobuilding("Count:", unitInfo.count)
             printecobuilding("Total Energy Produced:", unitInfo.totalEnergyProduced)
             printecobuilding("Total Metal Produced:", unitInfo.totalMetalProduced)
             printecobuilding("Energy Produced (Last Second):", unitInfo.lastSecondEnergyProduced)
-            printecobuilding("---Metal Produced (Last Second):", unitInfo.lastSecondMetalProduced)
+            printecobuilding("Metal Produced (Last Second):", unitInfo.lastSecondMetalProduced)
+            printecobuilding("-----------","")
         end
     end
     
@@ -182,6 +189,8 @@ function widget:UnitDestroyed(unitID, unitDefID, unitTeam, attackerID, attackerD
     if Spring.GetUnitIsBeingBuilt(unitID) then
         return
     end
+
+    unitModelCache.unitdefs[unitDefID] = nil
 
     if unitCache[unitTeam] then
         removeFromUnitCache(unitTeam, unitID, unitDefID)
@@ -410,7 +419,9 @@ end
 function buildUnitDefs()
 
     local function isEnergyProducer(unitDefId, unitDef)
-        return unitDef.energyMake >= 0 or (unitDef.customParams.energyconv_capacity and unitDef.customParams.energyconv_efficiency)
+        return (unitDef.customParams.unitgroup == 'energy') or 
+        (unitDef.customParams.energyconv_capacity and unitDef.customParams.energyconv_efficiency) or 
+        (unitDef.buildSpeed and (unitDef.buildSpeed > 0))
     end
     local function isCommander(unitDefID, unitDef)
         return unitDef.customParams.iscommander

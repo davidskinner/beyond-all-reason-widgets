@@ -21,7 +21,6 @@ unitModelCache.energySpent = 0
 unitModelCache.metalSpent = 0
 unitModelCache.liquidEnergy = 0
 unitModelCache.liquidMetal = 0
-local totalByUnitDef = {}
 local gaiaID = Spring.GetGaiaTeamID()
 local gaiaAllyID = select(6, Spring.GetTeamInfo(gaiaID, false))
 
@@ -48,11 +47,11 @@ function widget:Update()
         return
     end
     lastGameUpdate = gs
-
     calculateUnitData(unitCache,0,"energyProducingUnits")
-    -- calculateUnitData(unitCache,0,"utilityUnits")
-    -- calculateUnitData(unitCache,0,"reclaimerUnitDefs")
-    
+    -- write csv line of data per second
+    -- list of supported units w/ header mapping file
+    -- unit list fusion: con turret m spent,con turret count, wind e,fusion e, adv e converter 
+    -- a row has: GameSecond, afus e, fusion e, t2 conv m produced, 
 end
 
 lx = 0
@@ -217,8 +216,6 @@ function widget:UnitDestroyed(unitID, unitDefID, unitTeam, attackerID, attackerD
     if Spring.GetUnitIsBeingBuilt(unitID) then
         return
     end
-
-    unitModelCache.unitdefs[unitDefID] = nil
 
     if unitCache[unitTeam] then
         removeFromUnitCache(unitTeam, unitID, unitDefID)

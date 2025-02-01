@@ -15,8 +15,12 @@ local cachedTotals = {}
 local unitDefsToTrack = {}
 local unitModelCache = {}
 unitModelCache.unitdefs = {}
-unitModelCache.te = 0
-unitModelCache.tm = 0
+unitModelCache.energyProduced = 0
+unitModelCache.metalProduced = 0
+unitModelCache.energySpent = 0
+unitModelCache.metalSpent = 0
+unitModelCache.liquidEnergy = 0
+unitModelCache.liquidMetal = 0
 local totalByUnitDef = {}
 local gaiaID = Spring.GetGaiaTeamID()
 local gaiaAllyID = select(6, Spring.GetTeamInfo(gaiaID, false))
@@ -57,9 +61,13 @@ rx = 50
 ry = 350
 function widget:MousePress(x, y, button)
     if is_point_in_box(x,y,lx,ly,rx,ry) then
+        unitModelCache.energyProduced = 0
+        unitModelCache.metalProduced = 0
         for udid, value in pairs(unitModelCache.unitdefs) do
             value.totalEnergyProduced = 0
             value.totalMetalProduced = 0
+            value.totalMetalSpent = 0
+            value.totalEnergySpent = 0
         end
     end
 end
@@ -70,6 +78,8 @@ function calculateUnitData(unitCache, teamID, cacheName)
         value.count = 0
         value.lastSecondEnergyProduced = 0
         value.lastSecondMetalProduced = 0
+        value.lastSecondEnergySpent = 0
+        value.lastSecondMetalSpent = 0
     end
 
     -- Check if the team and cache exist
@@ -87,7 +97,11 @@ function calculateUnitData(unitCache, teamID, cacheName)
                     totalEnergyProduced = 0,
                     totalMetalProduced = 0,
                     lastSecondEnergyProduced = 0,
-                    lastSecondMetalProduced = 0
+                    lastSecondMetalProduced = 0,
+                    totalMetalSpent = 0,
+                    totalEnergySpent = 0,
+                    lastSecondEnergySpent = 0,
+                    lastSecondMetalSpent = 0
                 }
             else
                 unitModelCache.unitdefs[udid].count = unitModelCache.unitdefs[udid].count + 1
@@ -95,8 +109,13 @@ function calculateUnitData(unitCache, teamID, cacheName)
                 unitModelCache.unitdefs[udid].totalMetalProduced = unitModelCache.unitdefs[udid].totalMetalProduced + metalMake
                 unitModelCache.unitdefs[udid].lastSecondEnergyProduced = unitModelCache.unitdefs[udid].lastSecondEnergyProduced + energyMake
                 unitModelCache.unitdefs[udid].lastSecondMetalProduced = unitModelCache.unitdefs[udid].lastSecondMetalProduced + metalMake
-                unitModelCache.te = unitModelCache.te + energyMake
-                unitModelCache.tm = unitModelCache.tm + metalMake
+                unitModelCache.unitdefs[udid].totalEnergySpent = unitModelCache.unitdefs[udid].totalEnergySpent + energyUse
+                unitModelCache.unitdefs[udid].totalMetalSpent = unitModelCache.unitdefs[udid].totalMetalSpent + metalUse
+                unitModelCache.unitdefs[udid].lastSecondEnergySpent = unitModelCache.unitdefs[udid].lastSecondEnergySpent + energyUse
+                unitModelCache.unitdefs[udid].lastSecondMetalSpent = unitModelCache.unitdefs[udid].lastSecondMetalSpent + metalUse
+
+                unitModelCache.energyProduced = unitModelCache.energyProduced + energyMake
+                unitModelCache.metalProduced = unitModelCache.metalProduced + metalMake
             end
 
         end
@@ -120,29 +139,38 @@ function widget:DrawScreen()
     local mouseX, mouseY = Spring.GetMouseState()
 
     gl.Text(mouseX .." ".. mouseY, 400, 150, 16,"o")
-    gl.Text("total E: "..unitModelCache.te, 400, 200, 16,"o")
-    gl.Text("total M: "..unitModelCache.tm, 400, 250, 16,"o")
+    gl.Text("total E: "..unitModelCache.energyProduced, 400, 200, 16,"o")
+    gl.Text("total M: "..unitModelCache.metalProduced, 400, 225, 16,"o")
 
 
-
-    local startPos = 1200
+    local startPosX = 1700
+    local startPosY = 1350
     local textSpacing = 0
     local buffer = 5
     local function printecobuilding(prefix, value)
-        gl.Text( prefix .. value, 2000, startPos - textSpacing, 16, "o")
+        gl.Text( prefix .. value, startPosX, startPosY - textSpacing, 16, "s")
         textSpacing = textSpacing + 25
+
+        if textSpacing >= startPosY -200 then
+            textSpacing = 0
+            startPosX = startPosX + 300
+        end
     end
 
     -- draw e structure diagnostics
     if unitModelCache then
         for unitDef, unitInfo in pairs(unitModelCache.unitdefs) do
-            printecobuilding("Name:", unitInfo.name)
-            printecobuilding("UnitDefId:", unitDef)
-            printecobuilding("Count:", unitInfo.count)
-            printecobuilding("Total Energy Produced:", unitInfo.totalEnergyProduced)
-            printecobuilding("Total Metal Produced:", unitInfo.totalMetalProduced)
-            printecobuilding("Energy Produced (Last Second):", unitInfo.lastSecondEnergyProduced)
-            printecobuilding("Metal Produced (Last Second):", unitInfo.lastSecondMetalProduced)
+            printecobuilding("", unitInfo.name)
+            -- printecobuilding("UnitDefId:", unitDef)
+            printecobuilding("Count: ", unitInfo.count)
+            printecobuilding("Total E Produced:", unitInfo.totalEnergyProduced)
+            printecobuilding("Total E Spent:", unitInfo.totalEnergySpent)
+            -- printecobuilding("E/s IN:", unitInfo.lastSecondEnergyProduced)
+            -- printecobuilding("E/s OUT:", unitInfo.lastSecondEnergySpent)
+            printecobuilding("Total M Produced:", unitInfo.totalMetalProduced)
+            printecobuilding("Total M Spent:", unitInfo.totalMetalSpent)
+            -- printecobuilding("M/s IN:", unitInfo.lastSecondMetalProduced)
+            -- printecobuilding("M/s OUT:", unitInfo.lastSecondMetalSpent)
             printecobuilding("-----------","")
         end
     end
@@ -419,7 +447,7 @@ end
 function buildUnitDefs()
 
     local function isEnergyProducer(unitDefId, unitDef)
-        return (unitDef.customParams.unitgroup == 'energy') or 
+        return ((unitDef.customParams.unitgroup == 'metal') or (unitDef.customParams.unitgroup == 'energy')) or 
         (unitDef.customParams.energyconv_capacity and unitDef.customParams.energyconv_efficiency) or 
         (unitDef.buildSpeed and (unitDef.buildSpeed > 0))
     end
@@ -472,7 +500,7 @@ function buildUnitDefs()
 
     for unitDefID, unitDef in ipairs(UnitDefs) do
         if isEnergyProducer(unitDefID,unitDef) then
-            unitDefsToTrack.energyProducerDefs[unitDefID] = {energyMake = unitDef.energyMake}
+            unitDefsToTrack.energyProducerDefs[unitDefID] = {energyMake = unitDef.energyMake, metalMake = unitDef.metalMake}
         end
         if isCommander(unitDefID, unitDef) then
             unitDefsToTrack.commanderUnitDefs[unitDefID] = true

@@ -40,6 +40,8 @@ local totalEnergyProduced = 0
 local lastGameUpdate = 0
 local selectedUnits = {}
 
+local keys = {"Arm Commander", "oranges", "bananas"}
+
 function widget:Update()
 
     local gs = math.floor(Spring.GetGameSeconds())
@@ -52,6 +54,29 @@ function widget:Update()
     -- list of supported units w/ header mapping file
     -- unit list fusion: con turret m spent,con turret count, wind e,fusion e, adv e converter 
     -- a row has: GameSecond, afus e, fusion e, t2 conv m produced, 
+
+end
+
+local function writeTableToCSV(filename, data, keys)
+    -- Open file for writing
+    local file = io.open(filename, "w")
+    if not file then
+        return false, "Failed to open file"
+    end
+    
+    -- Write header row
+    file:write(table.concat(keys, ","), "\n")
+    
+    -- Write data rows
+    local values = {}
+    for _, key in ipairs(keys) do
+        table.insert(values, tostring(data[key] or 0))
+    end
+    file:write(table.concat(values, ","), "\n")
+    
+    -- Close the file
+    file:close()
+    return true
 end
 
 lx = 0
@@ -60,6 +85,7 @@ rx = 50
 ry = 350
 function widget:MousePress(x, y, button)
     if is_point_in_box(x,y,lx,ly,rx,ry) then
+        writeTableToCSV("LuaUI/Widgets/data.csv", unitModelCache.unitdefs, keys)
         unitModelCache.energyProduced = 0
         unitModelCache.metalProduced = 0
         for udid, value in pairs(unitModelCache.unitdefs) do
@@ -112,7 +138,6 @@ function calculateUnitData(unitCache, teamID, cacheName)
                 unitModelCache.unitdefs[udid].totalMetalSpent = unitModelCache.unitdefs[udid].totalMetalSpent + metalUse
                 unitModelCache.unitdefs[udid].lastSecondEnergySpent = unitModelCache.unitdefs[udid].lastSecondEnergySpent + energyUse
                 unitModelCache.unitdefs[udid].lastSecondMetalSpent = unitModelCache.unitdefs[udid].lastSecondMetalSpent + metalUse
-
                 unitModelCache.energyProduced = unitModelCache.energyProduced + energyMake
                 unitModelCache.metalProduced = unitModelCache.metalProduced + metalMake
             end
@@ -140,7 +165,6 @@ function widget:DrawScreen()
     gl.Text(mouseX .." ".. mouseY, 400, 150, 16,"o")
     gl.Text("total E: "..unitModelCache.energyProduced, 400, 200, 16,"o")
     gl.Text("total M: "..unitModelCache.metalProduced, 400, 225, 16,"o")
-
 
     local startPosX = 1700
     local startPosY = 1350
@@ -174,7 +198,6 @@ function widget:DrawScreen()
         end
     end
     
-
     -- reset button
     WG.FlowUI.Draw.Element(
         lx, -- x of bottom left

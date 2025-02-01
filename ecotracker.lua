@@ -40,7 +40,7 @@ local totalEnergyProduced = 0
 local lastGameUpdate = 0
 local selectedUnits = {}
 
-local keys = {"Arm Commander", "oranges", "bananas"}
+local csvColumns = {"Arm Commander", "oranges", "bananas"}
 
 function widget:Update()
 
@@ -49,7 +49,7 @@ function widget:Update()
         return
     end
     lastGameUpdate = gs
-    calculateUnitData(unitCache,0,"energyProducingUnits")
+    calculateUnitData(unitCache,0,"energyProducingUnits", gs)
     -- write csv line of data per second
     -- list of supported units w/ header mapping file
     -- unit list fusion: con turret m spent,con turret count, wind e,fusion e, adv e converter 
@@ -70,7 +70,11 @@ local function writeTableToCSV(filename, data, keys)
     -- Write data rows
     local values = {}
     for _, key in ipairs(keys) do
-        table.insert(values, tostring(data[key] or 0))
+        for key, value in pairs(data) do
+            if value.name == key then
+                table.insert(values, tostring(value.lastSecondEnergyProduced or 0))
+            end
+        end
     end
     file:write(table.concat(values, ","), "\n")
     
@@ -85,25 +89,25 @@ rx = 50
 ry = 350
 function widget:MousePress(x, y, button)
     if is_point_in_box(x,y,lx,ly,rx,ry) then
-        writeTableToCSV("LuaUI/Widgets/data.csv", unitModelCache.unitdefs, keys)
+        writeTableToCSV("LuaUI/Widgets/data.csv", unitModelCache.unitdefs, csvColumns)
         unitModelCache.energyProduced = 0
         unitModelCache.metalProduced = 0
         for udid, value in pairs(unitModelCache.unitdefs) do
             value.totalEnergyProduced = 0
+            value.totalEnergySpent = 0
             value.totalMetalProduced = 0
             value.totalMetalSpent = 0
-            value.totalEnergySpent = 0
         end
     end
 end
 
-function calculateUnitData(unitCache, teamID, cacheName)
+function calculateUnitData(unitCache, teamID, cacheName, gameSecond)
 
     for key, value in pairs(unitModelCache.unitdefs) do
         value.count = 0
         value.lastSecondEnergyProduced = 0
-        value.lastSecondMetalProduced = 0
         value.lastSecondEnergySpent = 0
+        value.lastSecondMetalProduced = 0
         value.lastSecondMetalSpent = 0
     end
 
@@ -119,29 +123,39 @@ function calculateUnitData(unitCache, teamID, cacheName)
                 unitModelCache.unitdefs[udid] = {
                     name = UnitDefs[udid]["translatedHumanName"],
                     count = 0,
-                    totalEnergyProduced = 0,
-                    totalMetalProduced = 0,
+
                     lastSecondEnergyProduced = 0,
-                    lastSecondMetalProduced = 0,
-                    totalMetalSpent = 0,
+                    totalEnergyProduced = 0,
                     totalEnergySpent = 0,
                     lastSecondEnergySpent = 0,
-                    lastSecondMetalSpent = 0
+                    energyProducedOverTimeArray = {},
+
+
+                    lastSecondMetalProduced = 0,
+                    totalMetalProduced = 0,
+                    totalMetalSpent = 0,
+                    lastSecondMetalSpent = 0,
+                    metalProducedOverTimeArray = {},
+
                 }
             else
+
                 unitModelCache.unitdefs[udid].count = unitModelCache.unitdefs[udid].count + 1
+                
                 unitModelCache.unitdefs[udid].totalEnergyProduced = unitModelCache.unitdefs[udid].totalEnergyProduced + energyMake
-                unitModelCache.unitdefs[udid].totalMetalProduced = unitModelCache.unitdefs[udid].totalMetalProduced + metalMake
                 unitModelCache.unitdefs[udid].lastSecondEnergyProduced = unitModelCache.unitdefs[udid].lastSecondEnergyProduced + energyMake
-                unitModelCache.unitdefs[udid].lastSecondMetalProduced = unitModelCache.unitdefs[udid].lastSecondMetalProduced + metalMake
-                unitModelCache.unitdefs[udid].totalEnergySpent = unitModelCache.unitdefs[udid].totalEnergySpent + energyUse
-                unitModelCache.unitdefs[udid].totalMetalSpent = unitModelCache.unitdefs[udid].totalMetalSpent + metalUse
                 unitModelCache.unitdefs[udid].lastSecondEnergySpent = unitModelCache.unitdefs[udid].lastSecondEnergySpent + energyUse
-                unitModelCache.unitdefs[udid].lastSecondMetalSpent = unitModelCache.unitdefs[udid].lastSecondMetalSpent + metalUse
+                unitModelCache.unitdefs[udid].totalEnergySpent = unitModelCache.unitdefs[udid].totalEnergySpent + energyUse
+                table.insert(unitModelCache.unitdefs[udid].energyProducedOverTimeArray, gameSecond, unitModelCache.unitdefs[udid].lastSecondEnergyProduced)
                 unitModelCache.energyProduced = unitModelCache.energyProduced + energyMake
+                
+
+                unitModelCache.unitdefs[udid].totalMetalProduced = unitModelCache.unitdefs[udid].totalMetalProduced + metalMake
+                unitModelCache.unitdefs[udid].lastSecondMetalProduced = unitModelCache.unitdefs[udid].lastSecondMetalProduced + metalMake
+                unitModelCache.unitdefs[udid].totalMetalSpent = unitModelCache.unitdefs[udid].totalMetalSpent + metalUse
+                unitModelCache.unitdefs[udid].lastSecondMetalSpent = unitModelCache.unitdefs[udid].lastSecondMetalSpent + metalUse
                 unitModelCache.metalProduced = unitModelCache.metalProduced + metalMake
             end
-
         end
     end
 end

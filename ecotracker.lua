@@ -37,12 +37,11 @@ function widget:Initialize()
     buildUnitCache()
 end
 
-local totalEnergyProduced = 0
+-- run test from 8:20 -> 20:00
+local csvColumns = {"Game Seconds", "armfus","armmakr","armmmkr",""}
+-- local csvColumns = {"Game Seconds","Advanced Fusion Reactor","Advanced Energy Converter"}
+
 local lastGameUpdate = 0
-local selectedUnits = {}
-
-local csvColumns = {"Arm Commander", "oranges", "bananas"}
-
 function widget:Update()
 
     local gs = math.floor(Spring.GetGameSeconds())
@@ -68,22 +67,20 @@ local function writeTableToCSV(filename, data, keys)
     -- Write header row
     file:write(table.concat(keys, ","), "\n")
     
-    -- Write data rows
-    -- for _, key in ipairs(keys) do
-    --     for key, value in pairs(data) do
-    --         if value.name == key then
-    --             table.insert(values, tostring(value.lastSecondEnergyProduced or 0))
-    --         end
-    --     end
-    -- end
-    
     -- foreach second, write a line
-    for i = 0, #unitModelCache.seconds do
+    for _, sec in ipairs(unitModelCache.seconds) do
         local values = {}
+        table.insert(values, sec)
         for _, key in ipairs(keys) do
             for k, v in pairs(data) do
-                if v.name == k then
-                    table.insert(values, tostring(v.energyProducedOverTimeArray[i] or 0))
+                if v.name == key then
+                    if v.energyProducedOverTimeArray[sec] ~= 0 then
+                        table.insert(values, tostring(v.energyProducedOverTimeArray[sec] or 0))
+                        else
+                        table.insert(values, tostring(v.metalProducedOverTimeArray[sec] or 0))
+                    end
+
+                    
                 end
             end
         end
@@ -136,7 +133,7 @@ function calculateUnitData(unitCache, teamID, cacheName, gameSecond)
             -- Initialize result entry for this unit type
             if not unitModelCache.unitdefs[udid] then
                 unitModelCache.unitdefs[udid] = {
-                    name = UnitDefs[udid]["translatedHumanName"],
+                    name = UnitDefs[udid]["tooltip"],
                     count = 0,
 
                     lastSecondEnergyProduced = 0,
@@ -175,9 +172,9 @@ function calculateUnitData(unitCache, teamID, cacheName, gameSecond)
     end
 end
 
-local printCount = 1
+local printCount = 5
 local printCountCurrent = 0
-function PrintOnce(msg)
+function PrintSome(msg)
     if printCountCurrent < printCount then
         if type(msg) == "table" then
             Spring.Echo("printonce: "..tableToString(msg))
@@ -217,11 +214,11 @@ function widget:DrawScreen()
             printecobuilding("Count: ", unitInfo.count)
             printecobuilding("Total E Produced:", unitInfo.totalEnergyProduced)
             printecobuilding("Total E Spent:", unitInfo.totalEnergySpent)
-            -- printecobuilding("E/s IN:", unitInfo.lastSecondEnergyProduced)
+            printecobuilding("E/s IN:", unitInfo.lastSecondEnergyProduced)
             -- printecobuilding("E/s OUT:", unitInfo.lastSecondEnergySpent)
             printecobuilding("Total M Produced:", unitInfo.totalMetalProduced)
             printecobuilding("Total M Spent:", unitInfo.totalMetalSpent)
-            -- printecobuilding("M/s IN:", unitInfo.lastSecondMetalProduced)
+            printecobuilding("M/s IN:", unitInfo.lastSecondMetalProduced)
             -- printecobuilding("M/s OUT:", unitInfo.lastSecondMetalSpent)
             printecobuilding("-----------","")
         end

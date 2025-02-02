@@ -37,10 +37,6 @@ function widget:Initialize()
     buildUnitCache()
 end
 
--- run test from 8:20 -> 20:00
-local csvColumns = {"Game Seconds", "armfus","armmakr","armmmkr",""}
--- local csvColumns = {"Game Seconds","Advanced Fusion Reactor","Advanced Energy Converter"}
-
 local lastGameUpdate = 0
 function widget:Update()
 
@@ -57,6 +53,12 @@ function widget:Update()
 
 end
 
+-- run test from 8:20 -> 20:00
+-- make the columns key-values where the key is the unit and the value is the piece of data 
+gamesecondscoldef = {name = "Game Seconds", unit = nil, valueFunc = nil}
+armfuscoldef = {name = "Arm Fusion", unit = "armfus", valueProperty = "energyProducedOverTimeArray"}
+local csvColumns = {gamesecondscoldef,armfuscoldef}
+
 local function writeTableToCSV(filename, data, keys)
     -- Open file for writing
     local file = io.open(filename, "w")
@@ -65,30 +67,27 @@ local function writeTableToCSV(filename, data, keys)
     end
     
     -- Write header row
-    file:write(table.concat(keys, ","), "\n")
+    headerRow = {}
+    for i, coldef in ipairs(keys) do
+        table.insert(headerRow,coldef.name)
+    end
+    file:write(table.concat(headerRow, ","), "\n")
     
     -- foreach second, write a line
     for _, sec in ipairs(unitModelCache.seconds) do
         local values = {}
         table.insert(values, sec)
-        for _, key in ipairs(keys) do
+        for _, coldef in ipairs(keys) do
             for k, v in pairs(data) do
-                if v.name == key then
-                    if v.energyProducedOverTimeArray[sec] ~= 0 then
-                        table.insert(values, tostring(v.energyProducedOverTimeArray[sec] or 0))
-                        else
-                        table.insert(values, tostring(v.metalProducedOverTimeArray[sec] or 0))
-                    end
-
-                    
+                PrintSome(coldef)
+                PrintSome(v.name.."".. tostring(coldef.unit))
+                if v.name == coldef.unit then
+                    table.insert(values, tostring(v[coldef.valueProperty][sec] or 0))
                 end
             end
         end
-        file:write(table.concat(values, ","), "\n")
+    file:write(table.concat(values, ","), "\n")
     end
-    
-    
-    -- Close the file
     file:close()
     return true
 end
@@ -123,14 +122,10 @@ function calculateUnitData(unitCache, teamID, cacheName, gameSecond)
         value.lastSecondMetalSpent = 0
     end
 
-    -- Check if the team and cache exist
     if unitCache[teamID] and unitCache[teamID][cacheName] then
         for unitID, unitData in pairs(unitCache[teamID][cacheName]) do
             local udid = Spring.GetUnitDefID(unitID)
-            -- PrintOnce(unitCache[teamID][cacheName][unitID])
-            -- local unitName = unitData.unitName
             local metalMake, metalUse, energyMake, energyUse = Spring.GetUnitResources(unitID)
-            -- Initialize result entry for this unit type
             if not unitModelCache.unitdefs[udid] then
                 unitModelCache.unitdefs[udid] = {
                     name = UnitDefs[udid]["tooltip"],
@@ -177,9 +172,9 @@ local printCountCurrent = 0
 function PrintSome(msg)
     if printCountCurrent < printCount then
         if type(msg) == "table" then
-            Spring.Echo("printonce: "..tableToString(msg))
+            Spring.Echo("printsome: "..tableToString(msg))
         else
-            Spring.Echo("printonce: "..msg)
+            Spring.Echo("printsome: "..msg)
         end
     end
     printCountCurrent = printCountCurrent + 1

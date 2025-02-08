@@ -39,55 +39,76 @@ end
 
 local lastGameUpdate = 0
 function widget:Update()
-
     local gs = math.floor(Spring.GetGameSeconds())
     if gs == lastGameUpdate then
         return
     end
     lastGameUpdate = gs
-    calculateUnitData(unitCache,0,"energyProducingUnits", gs)
+    calculateUnitData(unitCache, 0, "energyProducingUnits", gs)
     -- write csv line of data per second
     -- list of supported units w/ header mapping file
-    -- unit list fusion: con turret m spent,con turret count, wind e,fusion e, adv e converter 
-    -- a row has: GameSecond, afus e, fusion e, t2 conv m produced, 
-
+    -- unit list fusion: con turret m spent,con turret count, wind e,fusion e, adv e converter
+    -- a row has: GameSecond, afus e, fusion e, t2 conv m produced,
 end
 
--- run test from 8:20 -> 20:00
--- make the columns key-values where the key is the unit and the value is the piece of data 
-gamesecondscoldef = {name = "Game Seconds", unit = nil, valueFunc = nil}
-armfuscoldef = {name = "Arm Fusion", unit = "armfus", valueProperty = "energyProducedOverTimeArray"}
-local csvColumns = {gamesecondscoldef,armfuscoldef}
+-- run test from 8:20 -> 23:00
+-- make the columns key-values where the key is the unit and the value is the piece of data
+gamesecondscoldef = { name = "Game Seconds", unit = nil, valueFunc = nil }
+armfusEcoldef = { name = "Arm Fusion", unit = "armfus", valueProperty = "energyProducedOverTimeArray" }
+armafusEcoldef = { name = "Arm AFUS", unit = "armafus", valueProperty = "energyProducedOverTimeArray" }
+armwinEcoldef = { name = "Arm Wind", unit = "armwin", valueProperty = "energyProducedOverTimeArray" }
+armmmkrMcoldef = { name = "Arm T2 Conv", unit = "armmmkr", valueProperty = "metalProducedOverTimeArray" }
+armmakrMcoldef = { name = "Arm T1 Conv", unit = "armmakr", valueProperty = "metalProducedOverTimeArray" }
+armmohoMcoldef = { name = "T2 Mex", unit = "armmoho", valueProperty = "metalProducedOverTimeArray" }
+armnanotcMScoldef = { name = "Arm Con Turret", unit = "armnanotc", valueProperty = "metalSpentOverTimeArray" }
+armnanotcCcoldef = { name = "Arm Con Turret Count", unit = "armnanotc", valueProperty = "countOverTimeArray" }
+local csvColumns = { gamesecondscoldef,armmohoMcoldef,armmakrMcoldef,armmmkrMcoldef,
+ armafusEcoldef, armfusEcoldef, armwinEcoldef,
+ armnanotcMScoldef,armnanotcCcoldef }
+-- local csvColumns = {gamesecondscoldef,armafusEcoldef,armwinEcoldef,armmakrMcoldef,armmmkrMcoldef, armnanotcMScoldef}
 
-local function writeTableToCSV(filename, data, keys)
+local function writeTableToCSV(filename, modelCacheDefs, coldefs)
     -- Open file for writing
     local file = io.open(filename, "w")
     if not file then
         return false, "Failed to open file"
     end
-    
+
     -- Write header row
     headerRow = {}
-    for i, coldef in ipairs(keys) do
-        table.insert(headerRow,coldef.name)
+    for i, coldef in ipairs(coldefs) do
+        table.insert(headerRow, coldef.name)
     end
     file:write(table.concat(headerRow, ","), "\n")
-    
+
     -- foreach second, write a line
+    -- Create a lookup table for modelCacheDefs by name
+    local modelCacheDefsByName = {}
+    for _, v in pairs(modelCacheDefs) do
+        modelCacheDefsByName[v.name] = v
+    end
+
     for _, sec in ipairs(unitModelCache.seconds) do
         local values = {}
-        table.insert(values, sec)
-        for _, coldef in ipairs(keys) do
-            for k, v in pairs(data) do
-                PrintSome(coldef)
-                PrintSome(v.name.."".. tostring(coldef.unit))
-                if v.name == coldef.unit then
-                    table.insert(values, tostring(v[coldef.valueProperty][sec] or 0))
+        table.insert(values, sec) -- Add time as the first column
+
+        -- Process each column definition
+        for _, coldef in ipairs(coldefs) do
+            if coldef.valueProperty ~= nil then
+                local v = modelCacheDefsByName[coldef.unit] -- Fetch the correct unit directly
+                if v then
+                    local value = (v[coldef.valueProperty] and v[coldef.valueProperty][sec]) or 0
+                    table.insert(values, tostring(value))
+                else
+                    table.insert(values, "0") -- Default value if unit not found
                 end
             end
         end
-    file:write(table.concat(values, ","), "\n")
+
+        -- Write the correctly formatted row
+        file:write(table.concat(values, ","), "\n")
     end
+
     file:close()
     return true
 end
@@ -97,7 +118,7 @@ ly = 300
 rx = 50
 ry = 350
 function widget:MousePress(x, y, button)
-    if is_point_in_box(x,y,lx,ly,rx,ry) then
+    if is_point_in_box(x, y, lx, ly, rx, ry) then
         writeTableToCSV("LuaUI/Widgets/data.csv", unitModelCache.unitdefs, csvColumns)
         unitModelCache.energyProduced = 0
         unitModelCache.metalProduced = 0
@@ -111,7 +132,6 @@ function widget:MousePress(x, y, button)
 end
 
 function calculateUnitData(unitCache, teamID, cacheName, gameSecond)
-
     table.insert(unitModelCache.seconds, gameSecond)
 
     for key, value in pairs(unitModelCache.unitdefs) do
@@ -130,12 +150,14 @@ function calculateUnitData(unitCache, teamID, cacheName, gameSecond)
                 unitModelCache.unitdefs[udid] = {
                     name = UnitDefs[udid]["tooltip"],
                     count = 0,
+                    countOverTimeArray = {},
 
                     lastSecondEnergyProduced = 0,
                     totalEnergyProduced = 0,
                     totalEnergySpent = 0,
                     lastSecondEnergySpent = 0,
                     energyProducedOverTimeArray = {},
+                    energySpentOverTimeArray = {},
 
 
                     lastSecondMetalProduced = 0,
@@ -143,26 +165,40 @@ function calculateUnitData(unitCache, teamID, cacheName, gameSecond)
                     totalMetalSpent = 0,
                     lastSecondMetalSpent = 0,
                     metalProducedOverTimeArray = {},
+                    metalSpentOverTimeArray = {}
                 }
             else
-
                 unitModelCache.unitdefs[udid].count = unitModelCache.unitdefs[udid].count + 1
-                
-                unitModelCache.unitdefs[udid].totalEnergyProduced = unitModelCache.unitdefs[udid].totalEnergyProduced + energyMake
-                unitModelCache.unitdefs[udid].lastSecondEnergyProduced = unitModelCache.unitdefs[udid].lastSecondEnergyProduced + energyMake
-                unitModelCache.unitdefs[udid].lastSecondEnergySpent = unitModelCache.unitdefs[udid].lastSecondEnergySpent + energyUse
-                unitModelCache.unitdefs[udid].totalEnergySpent = unitModelCache.unitdefs[udid].totalEnergySpent + energyUse
-                table.insert(unitModelCache.unitdefs[udid].energyProducedOverTimeArray, gameSecond, unitModelCache.unitdefs[udid].lastSecondEnergyProduced)
-                
-                unitModelCache.unitdefs[udid].totalMetalProduced = unitModelCache.unitdefs[udid].totalMetalProduced + metalMake
-                unitModelCache.unitdefs[udid].lastSecondMetalProduced = unitModelCache.unitdefs[udid].lastSecondMetalProduced + metalMake
-                unitModelCache.unitdefs[udid].lastSecondMetalSpent = unitModelCache.unitdefs[udid].lastSecondMetalSpent + metalUse
+
+                unitModelCache.unitdefs[udid].totalEnergyProduced = unitModelCache.unitdefs[udid].totalEnergyProduced +
+                energyMake
+                unitModelCache.unitdefs[udid].lastSecondEnergyProduced = unitModelCache.unitdefs[udid]
+                .lastSecondEnergyProduced + energyMake
+                unitModelCache.unitdefs[udid].lastSecondEnergySpent = unitModelCache.unitdefs[udid]
+                .lastSecondEnergySpent + energyUse
+                unitModelCache.unitdefs[udid].totalEnergySpent = unitModelCache.unitdefs[udid].totalEnergySpent +
+                energyUse
+                table.insert(unitModelCache.unitdefs[udid].energyProducedOverTimeArray, gameSecond,
+                    unitModelCache.unitdefs[udid].lastSecondEnergyProduced)
+                table.insert(unitModelCache.unitdefs[udid].energySpentOverTimeArray, gameSecond,
+                    unitModelCache.unitdefs[udid].lastSecondEnergySpent)
+
+                unitModelCache.unitdefs[udid].totalMetalProduced = unitModelCache.unitdefs[udid].totalMetalProduced +
+                metalMake
+                unitModelCache.unitdefs[udid].lastSecondMetalProduced = unitModelCache.unitdefs[udid]
+                .lastSecondMetalProduced + metalMake
+                unitModelCache.unitdefs[udid].lastSecondMetalSpent = unitModelCache.unitdefs[udid].lastSecondMetalSpent +
+                metalUse
                 unitModelCache.unitdefs[udid].totalMetalSpent = unitModelCache.unitdefs[udid].totalMetalSpent + metalUse
-                table.insert(unitModelCache.unitdefs[udid].metalProducedOverTimeArray, gameSecond, unitModelCache.unitdefs[udid].lastSecondMetalProduced)
+                table.insert(unitModelCache.unitdefs[udid].metalProducedOverTimeArray, gameSecond,
+                    unitModelCache.unitdefs[udid].lastSecondMetalProduced)
+                table.insert(unitModelCache.unitdefs[udid].metalSpentOverTimeArray, gameSecond,
+                    unitModelCache.unitdefs[udid].lastSecondMetalSpent)
 
                 unitModelCache.energyProduced = unitModelCache.energyProduced + energyMake
                 unitModelCache.metalProduced = unitModelCache.metalProduced + metalMake
             end
+            table.insert(unitModelCache.unitdefs[udid].countOverTimeArray, gameSecond, unitModelCache.unitdefs[udid].count)
         end
     end
 end
@@ -172,54 +208,56 @@ local printCountCurrent = 0
 function PrintSome(msg)
     if printCountCurrent < printCount then
         if type(msg) == "table" then
-            Spring.Echo("printsome: "..tableToString(msg))
+            Spring.Echo("printsome: " .. tableToString(msg))
         else
-            Spring.Echo("printsome: "..msg)
+            Spring.Echo("printsome: " .. msg)
         end
     end
     printCountCurrent = printCountCurrent + 1
 end
 
+-- commente out for performance
 function widget:DrawScreen()
-    local mouseX, mouseY = Spring.GetMouseState()
+        gl.Text("Hello There",1700,1350,16,"s")
+--     local mouseX, mouseY = Spring.GetMouseState()
 
-    gl.Text(mouseX .." ".. mouseY, 400, 150, 16,"o")
-    gl.Text("total E: "..unitModelCache.energyProduced, 400, 200, 16,"o")
-    gl.Text("total M: "..unitModelCache.metalProduced, 400, 225, 16,"o")
+--     gl.Text(mouseX .. " " .. mouseY, 400, 150, 16, "o")
+--     gl.Text("total E: " .. unitModelCache.energyProduced, 400, 200, 16, "o")
+--     gl.Text("total M: " .. unitModelCache.metalProduced, 400, 225, 16, "o")
 
-    local startPosX = 1700
-    local startPosY = 1350
-    local textSpacing = 0
-    local buffer = 5
-    local function printecobuilding(prefix, value)
-        gl.Text( prefix .. value, startPosX, startPosY - textSpacing, 16, "s")
-        textSpacing = textSpacing + 25
+--     local startPosX = 1700
+--     local startPosY = 1350
+--     local textSpacing = 0
+--     local buffer = 5
+--     local function printecobuilding(prefix, value)
+--         gl.Text(prefix .. value, startPosX, startPosY - textSpacing, 16, "s")
+--         textSpacing = textSpacing + 25
 
-        if textSpacing >= startPosY -200 then
-            textSpacing = 0
-            startPosX = startPosX + 300
-        end
-    end
+--         if textSpacing >= startPosY - 200 then
+--             textSpacing = 0
+--             startPosX = startPosX + 300
+--         end
+--     end
 
-    -- draw e structure diagnostics
-    if unitModelCache then
-        for unitDef, unitInfo in pairs(unitModelCache.unitdefs) do
-            printecobuilding("", unitInfo.name)
-            -- printecobuilding("UnitDefId:", unitDef)
-            printecobuilding("Count: ", unitInfo.count)
-            printecobuilding("Total E Produced:", unitInfo.totalEnergyProduced)
-            printecobuilding("Total E Spent:", unitInfo.totalEnergySpent)
-            printecobuilding("E/s IN:", unitInfo.lastSecondEnergyProduced)
-            -- printecobuilding("E/s OUT:", unitInfo.lastSecondEnergySpent)
-            printecobuilding("Total M Produced:", unitInfo.totalMetalProduced)
-            printecobuilding("Total M Spent:", unitInfo.totalMetalSpent)
-            printecobuilding("M/s IN:", unitInfo.lastSecondMetalProduced)
-            -- printecobuilding("M/s OUT:", unitInfo.lastSecondMetalSpent)
-            printecobuilding("-----------","")
-        end
-    end
-    
-    -- reset button
+--     -- draw e structure diagnostics
+--     if unitModelCache then
+--         for unitDef, unitInfo in pairs(unitModelCache.unitdefs) do
+--             printecobuilding("", unitInfo.name)
+--             -- printecobuilding("UnitDefId:", unitDef)
+--             printecobuilding("Count: ", unitInfo.count)
+--             printecobuilding("Total E Produced:", unitInfo.totalEnergyProduced)
+--             printecobuilding("Total E Spent:", unitInfo.totalEnergySpent)
+--             printecobuilding("E/s IN:", unitInfo.lastSecondEnergyProduced)
+--             -- printecobuilding("E/s OUT:", unitInfo.lastSecondEnergySpent)
+--             printecobuilding("Total M Produced:", unitInfo.totalMetalProduced)
+--             printecobuilding("Total M Spent:", unitInfo.totalMetalSpent)
+--             printecobuilding("M/s IN:", unitInfo.lastSecondMetalProduced)
+--             -- printecobuilding("M/s OUT:", unitInfo.lastSecondMetalSpent)
+--             printecobuilding("-----------", "")
+--         end
+--     end
+
+--     -- reset button
     WG.FlowUI.Draw.Element(
         lx, -- x of bottom left
         ly, -- y of bottom left
@@ -255,7 +293,6 @@ function widget:UnitGiven(unitID, unitDefID, newTeam, oldTeam)
 end
 
 function widget:UnitDestroyed(unitID, unitDefID, unitTeam, attackerID, attackerDefID, attackerTeam)
-
     -- unit might've been a nanoframe
     if Spring.GetUnitIsBeingBuilt(unitID) then
         return
@@ -265,16 +302,16 @@ function widget:UnitDestroyed(unitID, unitDefID, unitTeam, attackerID, attackerD
         removeFromUnitCache(unitTeam, unitID, unitDefID)
     end
 end
+
 -- unitCache[teamid][cachetype][unitId]
 -- keep track of energy produced by each unit type and the total
 -- eproduced,mproduced and added to total
 function buildUnitModelCache()
     iUnitModels = {}
-    iUnitModels.add = function (self)
-        table.insert(self.iUnitModels,{})
+    iUnitModels.add = function(self)
+        table.insert(self.iUnitModels, {})
     end
 end
-
 
 function buildUnitCache()
     unitCache = {}
@@ -368,7 +405,7 @@ function buildUnitCache()
                 unitCache[teamID].economyBuildings = {}
                 cachedTotals[teamID].economyBuildings = 0
                 local unitIDs = Spring.GetTeamUnits(teamID)
-                for i=1,#unitIDs do
+                for i = 1, #unitIDs do
                     local unitID = unitIDs[i]
                     if not Spring.GetUnitIsBeingBuilt(unitID) then
                         local unitDefID = Spring.GetUnitDefID(unitID)
@@ -399,36 +436,36 @@ function addToUnitCache(teamID, unitID, unitDefID)
     end
 
     if unitDefsToTrack.energyProducerDefs[unitDefID] then
-        addToUnitCacheInternal("energyProducingUnits",teamID,unitID,
-                        unitDefsToTrack.energyProducerDefs[unitDefID])
+        addToUnitCacheInternal("energyProducingUnits", teamID, unitID,
+            unitDefsToTrack.energyProducerDefs[unitDefID])
     end
     if unitDefsToTrack.reclaimerUnitDefs[unitDefID] then
         addToUnitCacheInternal("reclaimerUnits", teamID, unitID,
-                       unitDefsToTrack.reclaimerUnitDefs[unitDefID])
+            unitDefsToTrack.reclaimerUnitDefs[unitDefID])
     end
     if unitDefsToTrack.energyConverterDefs[unitDefID] then
         addToUnitCacheInternal("energyConverters", teamID, unitID,
-                       unitDefsToTrack.energyConverterDefs[unitDefID])
+            unitDefsToTrack.energyConverterDefs[unitDefID])
     end
     if unitDefsToTrack.buildPowerDefs[unitDefID] then
         addToUnitCacheInternal("buildPower", teamID, unitID,
-                       unitDefsToTrack.buildPowerDefs[unitDefID])
+            unitDefsToTrack.buildPowerDefs[unitDefID])
     end
     if unitDefsToTrack.armyUnitDefs[unitDefID] then
         addToUnitCacheInternal("armyUnits", teamID, unitID,
-                       unitDefsToTrack.armyUnitDefs[unitDefID])
+            unitDefsToTrack.armyUnitDefs[unitDefID])
     end
     if unitDefsToTrack.defenseUnitDefs[unitDefID] then
         addToUnitCacheInternal("defenseUnits", teamID, unitID,
-                       unitDefsToTrack.defenseUnitDefs[unitDefID])
+            unitDefsToTrack.defenseUnitDefs[unitDefID])
     end
     if unitDefsToTrack.utilityUnitDefs[unitDefID] then
         addToUnitCacheInternal("utilityUnits", teamID, unitID,
-                       unitDefsToTrack.utilityUnitDefs[unitDefID])
+            unitDefsToTrack.utilityUnitDefs[unitDefID])
     end
     if unitDefsToTrack.economyBuildingDefs[unitDefID] then
         addToUnitCacheInternal("economyBuildings", teamID, unitID,
-                       unitDefsToTrack.economyBuildingDefs[unitDefID])
+            unitDefsToTrack.economyBuildingDefs[unitDefID])
     end
 end
 
@@ -453,44 +490,43 @@ function removeFromUnitCache(teamID, unitID, unitDefID)
 
     if unitDefsToTrack.energyProducerDefs[unitDefID] then
         removeFromUnitCacheInternal("energyProducingUnits", teamID, unitID,
-                       unitDefsToTrack.energyProducerDefs[unitDefID])
+            unitDefsToTrack.energyProducerDefs[unitDefID])
     end
     if unitDefsToTrack.reclaimerUnitDefs[unitDefID] then
         removeFromUnitCacheInternal("reclaimerUnits", teamID, unitID,
-                       unitDefsToTrack.reclaimerUnitDefs[unitDefID])
+            unitDefsToTrack.reclaimerUnitDefs[unitDefID])
     end
     if unitDefsToTrack.energyConverterDefs[unitDefID] then
         removeFromUnitCacheInternal("energyConverters", teamID, unitID,
-                       unitDefsToTrack.energyConverterDefs[unitDefID])
+            unitDefsToTrack.energyConverterDefs[unitDefID])
     end
     if unitDefsToTrack.buildPowerDefs[unitDefID] then
         removeFromUnitCacheInternal("buildPower", teamID, unitID,
-                       unitDefsToTrack.buildPowerDefs[unitDefID])
+            unitDefsToTrack.buildPowerDefs[unitDefID])
     end
     if unitDefsToTrack.armyUnitDefs[unitDefID] then
         removeFromUnitCacheInternal("armyUnits", teamID, unitID,
-                       unitDefsToTrack.armyUnitDefs[unitDefID])
+            unitDefsToTrack.armyUnitDefs[unitDefID])
     end
     if unitDefsToTrack.defenseUnitDefs[unitDefID] then
         removeFromUnitCacheInternal("defenseUnits", teamID, unitID,
-                       unitDefsToTrack.defenseUnitDefs[unitDefID])
+            unitDefsToTrack.defenseUnitDefs[unitDefID])
     end
     if unitDefsToTrack.utilityUnitDefs[unitDefID] then
         removeFromUnitCacheInternal("utilityUnits", teamID, unitID,
-                       unitDefsToTrack.utilityUnitDefs[unitDefID])
+            unitDefsToTrack.utilityUnitDefs[unitDefID])
     end
     if unitDefsToTrack.economyBuildingDefs[unitDefID] then
         removeFromUnitCacheInternal("economyBuildings", teamID, unitID,
-                       unitDefsToTrack.economyBuildingDefs[unitDefID])
+            unitDefsToTrack.economyBuildingDefs[unitDefID])
     end
 end
 
 function buildUnitDefs()
-
     local function isEnergyProducer(unitDefId, unitDef)
-        return ((unitDef.customParams.unitgroup == 'metal') or (unitDef.customParams.unitgroup == 'energy')) or 
-        (unitDef.customParams.energyconv_capacity and unitDef.customParams.energyconv_efficiency) or 
-        (unitDef.buildSpeed and (unitDef.buildSpeed > 0))
+        return ((unitDef.customParams.unitgroup == 'metal') or (unitDef.customParams.unitgroup == 'energy')) or
+            (unitDef.customParams.energyconv_capacity and unitDef.customParams.energyconv_efficiency) or
+            (unitDef.buildSpeed and (unitDef.buildSpeed > 0))
     end
     local function isCommander(unitDefID, unitDef)
         return unitDef.customParams.iscommander
@@ -536,12 +572,13 @@ function buildUnitDefs()
     unitDefsToTrack.utilityUnitDefs = {}
     unitDefsToTrack.economyBuildingDefs = {}
 
-    -- modify this to take in units that produce energy and metal 
+    -- modify this to take in units that produce energy and metal
     -- track metalmake/energymake
 
     for unitDefID, unitDef in ipairs(UnitDefs) do
-        if isEnergyProducer(unitDefID,unitDef) then
-            unitDefsToTrack.energyProducerDefs[unitDefID] = {energyMake = unitDef.energyMake, metalMake = unitDef.metalMake}
+        if isEnergyProducer(unitDefID, unitDef) then
+            unitDefsToTrack.energyProducerDefs[unitDefID] = { energyMake = unitDef.energyMake, metalMake = unitDef
+            .metalMake }
         end
         if isCommander(unitDefID, unitDef) then
             unitDefsToTrack.commanderUnitDefs[unitDefID] = true
@@ -576,7 +613,7 @@ function selectedUnitTableToString(tbl)
         local keyStr = tostring(key)
         local valueStr = type(value) == "table" and tableToString(value) or tostring(value)
         local unitDefID = Spring.GetUnitDefID(value)
-        result = result .. keyStr .. " = " .. valueStr ..",".. unitDefID .. ", "
+        result = result .. keyStr .. " = " .. valueStr .. "," .. unitDefID .. ", "
     end
     result = result:sub(1, -3) -- Remove the trailing comma and space
     return result .. "}"

@@ -13,7 +13,10 @@ end
 local unitCache = {}
 local cachedTotals = {}
 local unitDefsToTrack = {}
-local unitModelCache = {}
+local outputDefs = {}
+outputDefs.seconds = {}
+
+local unitModelCache = {} -- to swapped out 
 unitModelCache.unitdefs = {}
 unitModelCache.seconds = {}
 unitModelCache.energyProduced = 0
@@ -34,7 +37,8 @@ function widget:Initialize()
     viewScreenWidth, viewScreenHeight = Spring.GetViewGeometry()
 
     buildUnitDefs()
-    buildUnitCache()
+    buildUnitDefCache()
+    -- buildUnitCache()
 end
 
 local lastGameUpdate = 0
@@ -44,11 +48,8 @@ function widget:Update()
         return
     end
     lastGameUpdate = gs
-    calculateUnitData(unitCache, 0, "energyProducingUnits", gs)
-    -- write csv line of data per second
-    -- list of supported units w/ header mapping file
-    -- unit list fusion: con turret m spent,con turret count, wind e,fusion e, adv e converter
-    -- a row has: GameSecond, afus e, fusion e, t2 conv m produced,
+    -- calculateUnitData(unitCache, 0, "energyProducingUnits", gs)
+    calculateUnitDefData(0,gs)
 end
 
 -- run test from 8:20 -> 23:00
@@ -131,17 +132,20 @@ function widget:MousePress(x, y, button)
     end
 end
 
+-- todo: refactor to just care about unitdefid
 function calculateUnitData(unitCache, teamID, cacheName, gameSecond)
     table.insert(unitModelCache.seconds, gameSecond)
 
     for key, value in pairs(unitModelCache.unitdefs) do
-        value.count = 0
+        value.count = 0 -- NLN
         value.lastSecondEnergyProduced = 0
         value.lastSecondEnergySpent = 0
         value.lastSecondMetalProduced = 0
         value.lastSecondMetalSpent = 0
     end
 
+    -- change to loop over all unitdefs for a team and get count then multiply
+    -- unitdef count/state is managed when units are created/destroyed/given
     if unitCache[teamID] and unitCache[teamID][cacheName] then
         for unitID, unitData in pairs(unitCache[teamID][cacheName]) do
             local udid = Spring.GetUnitDefID(unitID)
@@ -202,6 +206,30 @@ function calculateUnitData(unitCache, teamID, cacheName, gameSecond)
         end
     end
 end
+
+function calculateUnitDefData( teamID, gameSecond)
+    table.insert(outputDefs.seconds, gameSecond)
+
+    for key, value in pairs(outputDefs[teamID]) do
+        value.lastSecondEnergyProduced = 0
+        value.lastSecondEnergySpent = 0
+        value.lastSecondMetalProduced = 0
+        value.lastSecondMetalSpent = 0
+    end
+
+    if outputDefs[teamID] then
+        for udid,v in pairs(outputDefs[teamID]) do
+            PrintSome(outputDefs[teamID])
+            outputDefs[teamID][udid].name = UnitDefs[udid]["tooltip"]
+            outputDefs[teamID][udid].count = Spring.GetTeamUnitDefCount(teamID,udid)
+            -- continue buliding out logic for the defs
+        end
+    end
+    PrintSome(outputDefs[teamID])
+
+    -- do all the math by multiplying by count
+end
+
 
 local printCount = 5
 local printCountCurrent = 0
@@ -306,11 +334,15 @@ end
 -- unitCache[teamid][cachetype][unitId]
 -- keep track of energy produced by each unit type and the total
 -- eproduced,mproduced and added to total
-function buildUnitModelCache()
-    iUnitModels = {}
-    iUnitModels.add = function(self)
-        table.insert(self.iUnitModels, {})
-    end
+function buildUnitDefCache()
+    -- local teams = Spring.GetTeamList()
+    -- for i,t in ipairs(teams) do
+    local t = 0
+        outputDefs[t] = {}
+        for k,v in pairs(unitDefsToTrack.economyUnitDefs) do
+            outputDefs[t][k] = {} -- initialize every team w/ every def we care about
+        end
+    -- end
 end
 
 function buildUnitCache()
@@ -435,37 +467,9 @@ function addToUnitCache(teamID, unitID, unitDefID)
         end
     end
 
-    if unitDefsToTrack.energyProducerDefs[unitDefID] then
+    if unitDefsToTrack.economyUnitDefs[unitDefID] then
         addToUnitCacheInternal("energyProducingUnits", teamID, unitID,
-            unitDefsToTrack.energyProducerDefs[unitDefID])
-    end
-    if unitDefsToTrack.reclaimerUnitDefs[unitDefID] then
-        addToUnitCacheInternal("reclaimerUnits", teamID, unitID,
-            unitDefsToTrack.reclaimerUnitDefs[unitDefID])
-    end
-    if unitDefsToTrack.energyConverterDefs[unitDefID] then
-        addToUnitCacheInternal("energyConverters", teamID, unitID,
-            unitDefsToTrack.energyConverterDefs[unitDefID])
-    end
-    if unitDefsToTrack.buildPowerDefs[unitDefID] then
-        addToUnitCacheInternal("buildPower", teamID, unitID,
-            unitDefsToTrack.buildPowerDefs[unitDefID])
-    end
-    if unitDefsToTrack.armyUnitDefs[unitDefID] then
-        addToUnitCacheInternal("armyUnits", teamID, unitID,
-            unitDefsToTrack.armyUnitDefs[unitDefID])
-    end
-    if unitDefsToTrack.defenseUnitDefs[unitDefID] then
-        addToUnitCacheInternal("defenseUnits", teamID, unitID,
-            unitDefsToTrack.defenseUnitDefs[unitDefID])
-    end
-    if unitDefsToTrack.utilityUnitDefs[unitDefID] then
-        addToUnitCacheInternal("utilityUnits", teamID, unitID,
-            unitDefsToTrack.utilityUnitDefs[unitDefID])
-    end
-    if unitDefsToTrack.economyBuildingDefs[unitDefID] then
-        addToUnitCacheInternal("economyBuildings", teamID, unitID,
-            unitDefsToTrack.economyBuildingDefs[unitDefID])
+            unitDefsToTrack.economyUnitDefs[unitDefID])
     end
 end
 
@@ -488,37 +492,9 @@ function removeFromUnitCache(teamID, unitID, unitDefID)
         end
     end
 
-    if unitDefsToTrack.energyProducerDefs[unitDefID] then
+    if unitDefsToTrack.economyUnitDefs[unitDefID] then
         removeFromUnitCacheInternal("energyProducingUnits", teamID, unitID,
-            unitDefsToTrack.energyProducerDefs[unitDefID])
-    end
-    if unitDefsToTrack.reclaimerUnitDefs[unitDefID] then
-        removeFromUnitCacheInternal("reclaimerUnits", teamID, unitID,
-            unitDefsToTrack.reclaimerUnitDefs[unitDefID])
-    end
-    if unitDefsToTrack.energyConverterDefs[unitDefID] then
-        removeFromUnitCacheInternal("energyConverters", teamID, unitID,
-            unitDefsToTrack.energyConverterDefs[unitDefID])
-    end
-    if unitDefsToTrack.buildPowerDefs[unitDefID] then
-        removeFromUnitCacheInternal("buildPower", teamID, unitID,
-            unitDefsToTrack.buildPowerDefs[unitDefID])
-    end
-    if unitDefsToTrack.armyUnitDefs[unitDefID] then
-        removeFromUnitCacheInternal("armyUnits", teamID, unitID,
-            unitDefsToTrack.armyUnitDefs[unitDefID])
-    end
-    if unitDefsToTrack.defenseUnitDefs[unitDefID] then
-        removeFromUnitCacheInternal("defenseUnits", teamID, unitID,
-            unitDefsToTrack.defenseUnitDefs[unitDefID])
-    end
-    if unitDefsToTrack.utilityUnitDefs[unitDefID] then
-        removeFromUnitCacheInternal("utilityUnits", teamID, unitID,
-            unitDefsToTrack.utilityUnitDefs[unitDefID])
-    end
-    if unitDefsToTrack.economyBuildingDefs[unitDefID] then
-        removeFromUnitCacheInternal("economyBuildings", teamID, unitID,
-            unitDefsToTrack.economyBuildingDefs[unitDefID])
+            unitDefsToTrack.economyUnitDefs[unitDefID])
     end
 end
 
@@ -528,81 +504,14 @@ function buildUnitDefs()
             (unitDef.customParams.energyconv_capacity and unitDef.customParams.energyconv_efficiency) or
             (unitDef.buildSpeed and (unitDef.buildSpeed > 0))
     end
-    local function isCommander(unitDefID, unitDef)
-        return unitDef.customParams.iscommander
-    end
-
-    local function isReclaimerUnit(unitDefID, unitDef)
-        return unitDef.isBuilder and not unitDef.isFactory
-    end
-
-    local function isEnergyConverter(unitDefID, unitDef)
-        return unitDef.customParams.energyconv_capacity and unitDef.customParams.energyconv_efficiency
-    end
-
-    local function isBuildPower(unitDefID, unitDef)
-        return unitDef.buildSpeed and (unitDef.buildSpeed > 0)
-    end
-
-    local function isArmyUnit(unitDefID, unitDef)
-        -- anything with a least one weapon and speed above zero is considered an army unit
-        return unitDef.weapons and (#unitDef.weapons > 0) and unitDef.speed and (unitDef.speed > 0)
-    end
-
-    local function isDefenseUnit(unitDefID, unitDef)
-        return unitDef.weapons and (#unitDef.weapons > 0) and (not unitDef.speed or (unitDef.speed == 0))
-    end
-
-    local function isUtilityUnit(unitDefID, unitDef)
-        return unitDef.customParams.unitgroup == 'util'
-    end
-
-    local function isEconomyBuilding(unitDefID, unitDef)
-        return (unitDef.customParams.unitgroup == 'metal') or (unitDef.customParams.unitgroup == 'energy')
-    end
 
     unitDefsToTrack = {}
-    unitDefsToTrack.energyProducerDefs = {}
-    unitDefsToTrack.commanderUnitDefs = {}
-    unitDefsToTrack.reclaimerUnitDefs = {}
-    unitDefsToTrack.energyConverterDefs = {}
-    unitDefsToTrack.buildPowerDefs = {}
-    unitDefsToTrack.armyUnitDefs = {}
-    unitDefsToTrack.defenseUnitDefs = {}
-    unitDefsToTrack.utilityUnitDefs = {}
-    unitDefsToTrack.economyBuildingDefs = {}
-
-    -- modify this to take in units that produce energy and metal
-    -- track metalmake/energymake
+    unitDefsToTrack.economyUnitDefs = {}
 
     for unitDefID, unitDef in ipairs(UnitDefs) do
         if isEnergyProducer(unitDefID, unitDef) then
-            unitDefsToTrack.energyProducerDefs[unitDefID] = { energyMake = unitDef.energyMake, metalMake = unitDef
+            unitDefsToTrack.economyUnitDefs[unitDefID] = { energyMake = unitDef.energyMake, metalMake = unitDef
             .metalMake }
-        end
-        if isCommander(unitDefID, unitDef) then
-            unitDefsToTrack.commanderUnitDefs[unitDefID] = true
-        end
-        if isReclaimerUnit(unitDefID, unitDef) then
-            unitDefsToTrack.reclaimerUnitDefs[unitDefID] = { unitDef.metalMake, unitDef.energyMake }
-        end
-        if isEnergyConverter(unitDefID, unitDef) then
-            unitDefsToTrack.energyConverterDefs[unitDefID] = tonumber(unitDef.customParams.energyconv_capacity)
-        end
-        if isBuildPower(unitDefID, unitDef) then
-            unitDefsToTrack.buildPowerDefs[unitDefID] = unitDef.buildSpeed
-        end
-        if isArmyUnit(unitDefID, unitDef) then
-            unitDefsToTrack.armyUnitDefs[unitDefID] = { unitDef.metalCost, unitDef.energyCost }
-        end
-        if isDefenseUnit(unitDefID, unitDef) then
-            unitDefsToTrack.defenseUnitDefs[unitDefID] = { unitDef.metalCost, unitDef.energyCost }
-        end
-        if isUtilityUnit(unitDefID, unitDef) then
-            unitDefsToTrack.utilityUnitDefs[unitDefID] = { unitDef.metalCost, unitDef.energyCost }
-        end
-        if isEconomyBuilding(unitDefID, unitDef) then
-            unitDefsToTrack.economyBuildingDefs[unitDefID] = { unitDef.metalCost, unitDef.energyCost }
         end
     end
 end

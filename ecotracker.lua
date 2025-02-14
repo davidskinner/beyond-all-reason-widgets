@@ -37,8 +37,8 @@ function widget:Initialize()
     viewScreenWidth, viewScreenHeight = Spring.GetViewGeometry()
 
     buildUnitDefs()
-    buildUnitDefCache()
-    -- buildUnitCache()
+    -- initializeUnitDefCache()
+    buildUnitCache()
 end
 
 local lastGameUpdate = 0
@@ -48,8 +48,8 @@ function widget:Update()
         return
     end
     lastGameUpdate = gs
-    -- calculateUnitData(unitCache, 0, "energyProducingUnits", gs)
-    calculateUnitDefData(0,gs)
+    calculateUnitData(unitCache, 0, "energyProducingUnits", gs)
+    -- calculateUnitDefData(0,gs)
 end
 
 -- run test from 8:20 -> 23:00
@@ -144,8 +144,7 @@ function calculateUnitData(unitCache, teamID, cacheName, gameSecond)
         value.lastSecondMetalSpent = 0
     end
 
-    -- change to loop over all unitdefs for a team and get count then multiply
-    -- unitdef count/state is managed when units are created/destroyed/given
+    -- track stable/unstable for better efficiency
     if unitCache[teamID] and unitCache[teamID][cacheName] then
         for unitID, unitData in pairs(unitCache[teamID][cacheName]) do
             local udid = Spring.GetUnitDefID(unitID)
@@ -210,7 +209,7 @@ end
 function calculateUnitDefData( teamID, gameSecond)
     table.insert(outputDefs.seconds, gameSecond)
 
-    for key, value in pairs(outputDefs[teamID]) do
+    for key, value in pairs(outputDefs[teamID].defs) do
         value.lastSecondEnergyProduced = 0
         value.lastSecondEnergySpent = 0
         value.lastSecondMetalProduced = 0
@@ -218,11 +217,11 @@ function calculateUnitDefData( teamID, gameSecond)
     end
 
     if outputDefs[teamID] then
-        for udid,v in pairs(outputDefs[teamID]) do
-            PrintSome(outputDefs[teamID])
-            outputDefs[teamID][udid].name = UnitDefs[udid]["tooltip"]
-            outputDefs[teamID][udid].count = Spring.GetTeamUnitDefCount(teamID,udid)
-            -- continue buliding out logic for the defs
+        for udid,v in pairs(outputDefs[teamID].defs) do
+            local toSet = outputDefs[teamID].defs[udid]
+            local toSetCount = Spring.GetTeamUnitDefCount(teamID,udid)
+            toSet.count = toSetCount
+            toSet.totalEnergyProduced = toSetCount * Spring.getteamun
         end
     end
     PrintSome(outputDefs[teamID])
@@ -300,47 +299,33 @@ function is_point_in_box(x, y, x_min, y_min, x_max, y_max)
     return x >= x_min and x <= x_max and y >= y_min and y <= y_max
 end
 
-function widget:UnitFinished(unitID, unitDefID, unitTeam)
-    if unitCache[unitTeam] then
-        addToUnitCache(unitTeam, unitID, unitDefID)
-    end
-end
 
-function widget:UnitGiven(unitID, unitDefID, newTeam, oldTeam)
-    if Spring.GetUnitIsBeingBuilt(unitID) then
-        return
-    end
-
-    if unitCache[oldTeam] then
-        removeFromUnitCache(oldTeam, unitID, unitDefID)
-    end
-
-    if unitCache[newTeam] then
-        addToUnitCache(newTeam, unitID, unitDefID)
-    end
-end
-
-function widget:UnitDestroyed(unitID, unitDefID, unitTeam, attackerID, attackerDefID, attackerTeam)
-    -- unit might've been a nanoframe
-    if Spring.GetUnitIsBeingBuilt(unitID) then
-        return
-    end
-
-    if unitCache[unitTeam] then
-        removeFromUnitCache(unitTeam, unitID, unitDefID)
-    end
-end
 
 -- unitCache[teamid][cachetype][unitId]
 -- keep track of energy produced by each unit type and the total
 -- eproduced,mproduced and added to total
-function buildUnitDefCache()
+local unitsICareAbout = {'armwin'}
+function initializeUnitDefCache()
     -- local teams = Spring.GetTeamList()
     -- for i,t in ipairs(teams) do
+    -- only get defs from list by name
+
     local t = 0
         outputDefs[t] = {}
-        for k,v in pairs(unitDefsToTrack.economyUnitDefs) do
-            outputDefs[t][k] = {} -- initialize every team w/ every def we care about
+        outputDefs[t].defs = {}
+    
+        outputDefs[t].countOverTimeArray = {}
+        for k,v in pairs(UnitDefs) do
+            for index, value in ipairs(unitsICareAbout) do
+                if(v.name == value) then
+                outputDefs[t].defs[k] = {} -- initialize every team w/ every def we care about
+                outputDefs[t].defs[k].name = v["tooltip"]
+                outputDefs[t].defs[k].energyProducedOverTimeArray = {}
+                outputDefs[t].defs[k].energySpentOverTimeArray = {}
+                outputDefs[t].defs[k].metalProducedOverTimeArray = {}
+                outputDefs[t].defs[k].metalSpentOverTimeArray = {}
+                end
+            end
         end
     -- end
 end
@@ -513,6 +498,37 @@ function buildUnitDefs()
             unitDefsToTrack.economyUnitDefs[unitDefID] = { energyMake = unitDef.energyMake, metalMake = unitDef
             .metalMake }
         end
+    end
+end
+
+function widget:UnitFinished(unitID, unitDefID, unitTeam)
+    if unitCache[unitTeam] then
+        addToUnitCache(unitTeam, unitID, unitDefID)
+    end
+end
+
+function widget:UnitGiven(unitID, unitDefID, newTeam, oldTeam)
+    if Spring.GetUnitIsBeingBuilt(unitID) then
+        return
+    end
+
+    if unitCache[oldTeam] then
+        removeFromUnitCache(oldTeam, unitID, unitDefID)
+    end
+
+    if unitCache[newTeam] then
+        addToUnitCache(newTeam, unitID, unitDefID)
+    end
+end
+
+function widget:UnitDestroyed(unitID, unitDefID, unitTeam, attackerID, attackerDefID, attackerTeam)
+    -- unit might've been a nanoframe
+    if Spring.GetUnitIsBeingBuilt(unitID) then
+        return
+    end
+
+    if unitCache[unitTeam] then
+        removeFromUnitCache(unitTeam, unitID, unitDefID)
     end
 end
 

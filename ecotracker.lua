@@ -304,7 +304,20 @@ end
 -- unitCache[teamid][cachetype][unitId]
 -- keep track of energy produced by each unit type and the total
 -- eproduced,mproduced and added to total
-local unitsICareAbout = {'armwin'}
+local unitsICareAbout = {
+    {
+        name = 'armwin',
+        isConstant = true,
+        eFunc = function ()
+            return Spring.GetWind()
+    end, 
+    mFunc = function ()
+   return 0
+end
+},{
+    name = "armfus"
+}
+}
 function initializeUnitDefCache()
     -- local teams = Spring.GetTeamList()
     -- for i,t in ipairs(teams) do
@@ -482,7 +495,8 @@ function removeFromUnitCache(teamID, unitID, unitDefID)
             unitDefsToTrack.economyUnitDefs[unitDefID])
     end
 end
-
+-- Spring.GetTeamUnitDefCount
+-- Spring.GetTeamUnitsByDefs
 function buildUnitDefs()
     local function isEnergyProducer(unitDefId, unitDef)
         return ((unitDef.customParams.unitgroup == 'metal') or (unitDef.customParams.unitgroup == 'energy')) or

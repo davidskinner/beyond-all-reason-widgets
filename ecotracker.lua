@@ -5,8 +5,8 @@ function widget:GetInfo()
         author = "David Skinner, feat. CMDRZod",
         date = "2025-01-05",
         license = "GPLv2",
-        layer = 1,
-        enabled = true
+        layer = 0,
+        enabled = false
     }
 end
 
@@ -157,6 +157,10 @@ function calculateUnitData(unitCache, teamID, cacheName, gameSecond)
     end
 end
 
+local lx = 0
+local ly = 300
+local rx = 50
+local ry = 350
 -- commente out for performance
 function widget:DrawScreen()
     gl.Text("Hello There", 1700, 1350, 16, "s")
@@ -444,10 +448,7 @@ function writeTableToCSV(filename, modelCacheDefs, coldefs)
     return true
 end
 
-local lx = 0
-local ly = 300
-local rx = 50
-local ry = 350
+
 function widget:MousePress(x, y, button)
     if is_point_in_box(x, y, lx, ly, rx, ry) then
         writeTableToCSV("LuaUI/Widgets/data.csv", unitModelCache.unitdefs, csvColumns)

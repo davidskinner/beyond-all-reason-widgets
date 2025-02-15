@@ -2,7 +2,7 @@ function widget:GetInfo()
     return {
         name = "EcoTracker",
         desc = "Tracks resources with start/stop controls.",
-        author = "ChatGPT",
+        author = "David Skinner, feat. CMDRZod",
         date = "2025-01-05",
         license = "GPLv2",
         layer = 1,
@@ -12,8 +12,6 @@ end
 
 local unitCache = {}
 local unitDefsToTrack = {}
-local outputDefs = {}
-outputDefs.seconds = {}
 
 local unitModelCache = {} -- to swapped out
 unitModelCache.unitdefs = {}
@@ -32,8 +30,7 @@ local options = {
 }
 
 function widget:Initialize()
-    viewScreenWidth, viewScreenHeight = Spring.GetViewGeometry()
-
+    -- viewScreenWidth, viewScreenHeight = Spring.GetViewGeometry()
     buildUnitDefs()
     buildUnitCache()
 end
@@ -122,7 +119,6 @@ function widget:MousePress(x, y, button)
     end
 end
 
--- todo: refactor to just care about unitdefid
 function calculateUnitData(unitCache, teamID, cacheName, gameSecond)
     table.insert(unitModelCache.seconds, gameSecond)
 
@@ -297,7 +293,6 @@ end
 
 function buildUnitCache()
     unitCache = {}
-
     unitCache.economyUnits = {}
 
     for _, allyID in ipairs(Spring.GetAllyTeamList()) do

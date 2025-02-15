@@ -48,8 +48,6 @@ function widget:Update()
     end
     lastGameUpdate = gs
     calculateUnitData(unitCache, 0, "economyUnits", gs)
-    PrintSome(gs)
-    -- calculateUnitDefData(0,gs)
 end
 
 -- run test from 8:20 -> 23:00
@@ -540,3 +538,4 @@ function calculateUnitDefData(teamID, gameSecond)
 
     -- do all the math by multiplying by count
 end
+----- OLD

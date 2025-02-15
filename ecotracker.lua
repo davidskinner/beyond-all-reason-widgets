@@ -11,7 +11,6 @@ function widget:GetInfo()
 end
 
 local unitCache = {}
-local cachedTotals = {}
 local unitDefsToTrack = {}
 local outputDefs = {}
 outputDefs.seconds = {}
@@ -345,7 +344,6 @@ end
 
 function buildUnitCache()
     unitCache = {}
-    cachedTotals = {}
 
     unitCache.energyProducingUnits = {}
 
@@ -417,23 +415,14 @@ function buildUnitCache()
             local teamList = Spring.GetTeamList(allyID)
             for _, teamID in ipairs(teamList) do
                 unitCache[teamID] = {}
-                cachedTotals[teamID] = {}
                 unitCache[teamID].energyProducingUnits = {}
-                cachedTotals[teamID].energyProducingUnits = 0
                 unitCache[teamID].reclaimerUnits = {}
-                cachedTotals[teamID].reclaimerUnits = 0
                 unitCache[teamID].energyConverters = {}
-                cachedTotals[teamID].energyConverters = 0
                 unitCache[teamID].buildPower = {}
-                cachedTotals[teamID].buildPower = 0
                 unitCache[teamID].armyUnits = {}
-                cachedTotals[teamID].armyUnits = 0
                 unitCache[teamID].defenseUnits = {}
-                cachedTotals[teamID].defenseUnits = 0
                 unitCache[teamID].utilityUnits = {}
-                cachedTotals[teamID].utilityUnits = 0
                 unitCache[teamID].economyBuildings = {}
-                cachedTotals[teamID].economyBuildings = 0
                 local unitIDs = Spring.GetTeamUnits(teamID)
                 for i = 1, #unitIDs do
                     local unitID = unitIDs[i]
@@ -451,13 +440,6 @@ function addToUnitCache(teamID, unitID, unitDefID)
     local function addToUnitCacheInternal(cache, teamID, unitID, value)
         if unitCache[teamID][cache] then
             if not unitCache[teamID][cache][unitID] then
-                if cachedTotals[teamID][cache] then
-                    local valueToAdd = 0
-                    if unitCache[cache].add then
-                        valueToAdd = unitCache[cache].add(unitID, value)
-                    end
-                    cachedTotals[teamID][cache] = cachedTotals[teamID][cache] + valueToAdd
-                end
                 unitCache[teamID][cache][unitID] = value
             else
                 Spring.Echo(string.format("WARNING: addToUnitCache(), unitID %d already added", unitID))
@@ -496,13 +478,6 @@ function removeFromUnitCache(teamID, unitID, unitDefID)
     local function removeFromUnitCacheInternal(cache, teamID, unitID, value)
         if unitCache[teamID][cache] then
             if unitCache[teamID][cache][unitID] then
-                if cachedTotals[teamID][cache] then
-                    local valueToRemove = 0
-                    if unitCache[cache].remove then
-                        valueToRemove = unitCache[cache].remove(unitID, value)
-                    end
-                    cachedTotals[teamID][cache] = cachedTotals[teamID][cache] - valueToRemove
-                end
                 unitCache[teamID][cache][unitID] = nil
                 -- unitModelCache[Spring.GetUnitDefID(unitID)] = nil
             else

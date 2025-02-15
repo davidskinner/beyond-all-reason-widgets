@@ -30,6 +30,7 @@ local gaiaAllyID = select(6, Spring.GetTeamInfo(gaiaID, false))
 local options = {
     useMetalEquivalent70 = false,
     subtractReclaimFromIncome = false,
+    staticWindValue = 14.2
 }
 
 function widget:Initialize()
@@ -169,7 +170,7 @@ function calculateUnitData(unitCache, teamID, cacheName, gameSecond)
                 }
             else
                 if isWind(udid) then
-                    local _,_,_,windPower = Spring.GetWind()
+                    local windPower =  (function() if options.staticWindValue > 0 then return options.staticWindValue else return select(4, Spring.GetWind()) end end)()
                     unitModelCache.unitdefs[udid].count = #unitCache[teamID][cacheName].defs[udid]
                     table.insert(unitModelCache.unitdefs[udid].energyProducedOverTimeArray, gameSecond,
                         windPower * unitModelCache.unitdefs[udid].count)

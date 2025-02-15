@@ -5,7 +5,7 @@ function widget:GetInfo()
         author = "ChatGPT",
         date = "2025-01-05",
         license = "GPLv2",
-        layer = 0,
+        layer = 1,
         enabled = true
     }
 end
@@ -22,8 +22,6 @@ unitModelCache.energyProduced = 0
 unitModelCache.metalProduced = 0
 unitModelCache.energySpent = 0
 unitModelCache.metalSpent = 0
-unitModelCache.liquidEnergy = 0
-unitModelCache.liquidMetal = 0
 local gaiaID = Spring.GetGaiaTeamID()
 local gaiaAllyID = select(6, Spring.GetTeamInfo(gaiaID, false))
 
@@ -51,7 +49,6 @@ function widget:Update()
 end
 
 -- run test from 8:20 -> 23:00
--- make the columns key-values where the key is the unit and the value is the piece of data
 gamesecondscoldef = { name = "Game Seconds", unit = nil, valueFunc = nil }
 armfusEcoldef = { name = "Arm Fusion", unit = "armfus", valueProperty = "energyProducedOverTimeArray" }
 armafusEcoldef = { name = "Arm AFUS", unit = "armafus", valueProperty = "energyProducedOverTimeArray" }
@@ -64,24 +61,19 @@ armnanotcCcoldef = { name = "Arm Con Turret Count", unit = "armnanotc", valuePro
 local csvColumns = { gamesecondscoldef, armmohoMcoldef, armmakrMcoldef, armmmkrMcoldef,
     armafusEcoldef, armfusEcoldef, armwinEcoldef,
     armnanotcMScoldef, armnanotcCcoldef }
--- local csvColumns = {gamesecondscoldef,armafusEcoldef,armwinEcoldef,armmakrMcoldef,armmmkrMcoldef, armnanotcMScoldef}
 
 local function writeTableToCSV(filename, modelCacheDefs, coldefs)
-    -- Open file for writing
     local file = io.open(filename, "w")
     if not file then
         return false, "Failed to open file"
     end
 
-    -- Write header row
-    headerRow = {}
+    local headerRow = {}
     for i, coldef in ipairs(coldefs) do
         table.insert(headerRow, coldef.name)
     end
     file:write(table.concat(headerRow, ","), "\n")
 
-    -- foreach second, write a line
-    -- Create a lookup table for modelCacheDefs by name
     local modelCacheDefsByName = {}
     for _, v in pairs(modelCacheDefs) do
         modelCacheDefsByName[v.name] = v
@@ -135,16 +127,14 @@ function calculateUnitData(unitCache, teamID, cacheName, gameSecond)
     table.insert(unitModelCache.seconds, gameSecond)
 
     for key, value in pairs(unitModelCache.unitdefs) do
-        value.count = 0 -- NLN
+        value.count = 0
         value.lastSecondEnergyProduced = 0
         value.lastSecondEnergySpent = 0
         value.lastSecondMetalProduced = 0
         value.lastSecondMetalSpent = 0
     end
 
-    -- track stable/unstable for better efficiency
     if unitCache[teamID] and unitCache[teamID][cacheName] then
-        -- change to loop over defs
         for udid, unitIds in pairs(unitCache[teamID][cacheName].defs) do
             if not unitModelCache.unitdefs[udid] then
                 unitModelCache.unitdefs[udid] = {
@@ -167,9 +157,11 @@ function calculateUnitData(unitCache, teamID, cacheName, gameSecond)
                     metalSpentOverTimeArray = {}
                 }
             else
+                unitModelCache.unitdefs[udid].count = #unitCache[teamID][cacheName].defs[udid]
+
                 if isWind(udid) then
-                    local windPower =  (function() if options.staticWindValue > 0 then return options.staticWindValue else return select(4, Spring.GetWind()) end end)()
-                    unitModelCache.unitdefs[udid].count = #unitCache[teamID][cacheName].defs[udid]
+                    local windPower = (function() if options.staticWindValue > 0 then return options.staticWindValue else return
+                            select(4, Spring.GetWind()) end end)()
                     table.insert(unitModelCache.unitdefs[udid].energyProducedOverTimeArray, gameSecond,
                         windPower * unitModelCache.unitdefs[udid].count)
                     table.insert(unitModelCache.unitdefs[udid].energySpentOverTimeArray, gameSecond,
@@ -179,30 +171,33 @@ function calculateUnitData(unitCache, teamID, cacheName, gameSecond)
                     table.insert(unitModelCache.unitdefs[udid].metalSpentOverTimeArray, gameSecond,
                         unitModelCache.unitdefs[udid].lastSecondMetalSpent)
                 else
-                    -- iterate over each unit like before
                     for _, unitId in ipairs(unitIds) do
                         local metalMake, metalUse, energyMake, energyUse = Spring.GetUnitResources(unitId)
 
-                        unitModelCache.unitdefs[udid].totalEnergyProduced = unitModelCache.unitdefs[udid].totalEnergyProduced +
-                        energyMake
+                        unitModelCache.unitdefs[udid].totalEnergyProduced = unitModelCache.unitdefs[udid]
+                            .totalEnergyProduced +
+                            energyMake
                         unitModelCache.unitdefs[udid].lastSecondEnergyProduced = unitModelCache.unitdefs[udid]
-                        .lastSecondEnergyProduced + energyMake
+                            .lastSecondEnergyProduced + energyMake
                         unitModelCache.unitdefs[udid].lastSecondEnergySpent = unitModelCache.unitdefs[udid]
-                        .lastSecondEnergySpent + energyUse
+                            .lastSecondEnergySpent + energyUse
                         unitModelCache.unitdefs[udid].totalEnergySpent = unitModelCache.unitdefs[udid].totalEnergySpent +
-                        energyUse
+                            energyUse
                         table.insert(unitModelCache.unitdefs[udid].energyProducedOverTimeArray, gameSecond,
                             unitModelCache.unitdefs[udid].lastSecondEnergyProduced)
                         table.insert(unitModelCache.unitdefs[udid].energySpentOverTimeArray, gameSecond,
                             unitModelCache.unitdefs[udid].lastSecondEnergySpent)
 
-                        unitModelCache.unitdefs[udid].totalMetalProduced = unitModelCache.unitdefs[udid].totalMetalProduced +
-                        metalMake
+                        unitModelCache.unitdefs[udid].totalMetalProduced = unitModelCache.unitdefs[udid]
+                            .totalMetalProduced +
+                            metalMake
                         unitModelCache.unitdefs[udid].lastSecondMetalProduced = unitModelCache.unitdefs[udid]
-                        .lastSecondMetalProduced + metalMake
-                        unitModelCache.unitdefs[udid].lastSecondMetalSpent = unitModelCache.unitdefs[udid].lastSecondMetalSpent +
+                            .lastSecondMetalProduced + metalMake
+                        unitModelCache.unitdefs[udid].lastSecondMetalSpent = unitModelCache.unitdefs[udid]
+                            .lastSecondMetalSpent +
+                            metalUse
+                        unitModelCache.unitdefs[udid].totalMetalSpent = unitModelCache.unitdefs[udid].totalMetalSpent +
                         metalUse
-                        unitModelCache.unitdefs[udid].totalMetalSpent = unitModelCache.unitdefs[udid].totalMetalSpent + metalUse
                         table.insert(unitModelCache.unitdefs[udid].metalProducedOverTimeArray, gameSecond,
                             unitModelCache.unitdefs[udid].lastSecondMetalProduced)
                         table.insert(unitModelCache.unitdefs[udid].metalSpentOverTimeArray, gameSecond,
@@ -213,10 +208,8 @@ function calculateUnitData(unitCache, teamID, cacheName, gameSecond)
                     end
                 end
             end
-            unitModelCache.unitdefs[udid].count = #unitCache[teamID][cacheName].defs[udid]
             table.insert(unitModelCache.unitdefs[udid].countOverTimeArray, gameSecond,
-            #unitCache[teamID][cacheName].defs[udid])
-                
+                #unitCache[teamID][cacheName].defs[udid])
         end
     end
 end
@@ -277,7 +270,7 @@ end
 -- Spring.GetTeamUnitsByDefs
 local windDefIds = {}
 function buildUnitDefs()
-    local function isEnergyProducer(unitDefId, unitDef)
+    local function isEconomyUnit(unitDefId, unitDef)
         return ((unitDef.customParams.unitgroup == 'metal') or (unitDef.customParams.unitgroup == 'energy')) or
             (unitDef.customParams.energyconv_capacity and unitDef.customParams.energyconv_efficiency) or
             (unitDef.buildSpeed and (unitDef.buildSpeed > 0))
@@ -287,7 +280,7 @@ function buildUnitDefs()
     unitDefsToTrack.economyUnitDefs = {}
 
     for unitDefID, unitDef in ipairs(UnitDefs) do
-        if isEnergyProducer(unitDefID, unitDef) then
+        if isEconomyUnit(unitDefID, unitDef) then
             unitDefsToTrack.economyUnitDefs[unitDefID] = {
                 name = unitDef.tooltip,
                 energyMake = unitDef.energyMake,
@@ -470,72 +463,3 @@ function PrintSome(msg)
 end
 
 ----- UTILITIES -----
-
-
-
------ OLD ------------------------
------ unitCache[teamid][cachetype][unitId]
--- keep track of energy produced by each unit type and the total
--- eproduced,mproduced and added to total
-local unitsICareAbout = {
-    {
-        name = 'armwin',
-        isConstant = true,
-        eFunc = function()
-            return Spring.GetWind()
-        end,
-        mFunc = function()
-            return 0
-        end
-    }, {
-    name = "armfus"
-}
-}
-function initializeUnitDefCache()
-    -- local teams = Spring.GetTeamList()
-    -- for i,t in ipairs(teams) do
-    -- only get defs from list by name
-
-    local t = 0
-    outputDefs[t] = {}
-    outputDefs[t].defs = {}
-
-    outputDefs[t].countOverTimeArray = {}
-    for k, v in pairs(UnitDefs) do
-        for index, value in ipairs(unitsICareAbout) do
-            if (v.name == value) then
-                outputDefs[t].defs[k] = {} -- initialize every team w/ every def we care about
-                outputDefs[t].defs[k].name = v["tooltip"]
-                outputDefs[t].defs[k].energyProducedOverTimeArray = {}
-                outputDefs[t].defs[k].energySpentOverTimeArray = {}
-                outputDefs[t].defs[k].metalProducedOverTimeArray = {}
-                outputDefs[t].defs[k].metalSpentOverTimeArray = {}
-            end
-        end
-    end
-    -- end
-end
-
-function calculateUnitDefData(teamID, gameSecond)
-    table.insert(outputDefs.seconds, gameSecond)
-
-    for key, value in pairs(outputDefs[teamID].defs) do
-        value.lastSecondEnergyProduced = 0
-        value.lastSecondEnergySpent = 0
-        value.lastSecondMetalProduced = 0
-        value.lastSecondMetalSpent = 0
-    end
-
-    if outputDefs[teamID] then
-        for udid, v in pairs(outputDefs[teamID].defs) do
-            local toSet = outputDefs[teamID].defs[udid]
-            local toSetCount = Spring.GetTeamUnitDefCount(teamID, udid)
-            toSet.count = toSetCount
-            toSet.totalEnergyProduced = toSetCount * Spring.getteamun
-        end
-    end
-    PrintSome(outputDefs[teamID])
-
-    -- do all the math by multiplying by count
-end
------ OLD

@@ -471,6 +471,27 @@ function addToUnitCache(teamID, unitID, unitDefID)
     end
 end
 
+
+-- Spring.GetTeamUnitDefCount
+-- Spring.GetTeamUnitsByDefs
+function buildUnitDefs()
+    local function isEnergyProducer(unitDefId, unitDef)
+        return ((unitDef.customParams.unitgroup == 'metal') or (unitDef.customParams.unitgroup == 'energy')) or
+            (unitDef.customParams.energyconv_capacity and unitDef.customParams.energyconv_efficiency) or
+            (unitDef.buildSpeed and (unitDef.buildSpeed > 0))
+    end
+
+    unitDefsToTrack = {}
+    unitDefsToTrack.economyUnitDefs = {}
+
+    for unitDefID, unitDef in ipairs(UnitDefs) do
+        if isEnergyProducer(unitDefID, unitDef) then
+            unitDefsToTrack.economyUnitDefs[unitDefID] = { energyMake = unitDef.energyMake, metalMake = unitDef
+            .metalMake }
+        end
+    end
+end
+
 function removeFromUnitCache(teamID, unitID, unitDefID)
     local function removeFromUnitCacheInternal(cache, teamID, unitID, value)
         if unitCache[teamID][cache] then
@@ -495,26 +516,6 @@ function removeFromUnitCache(teamID, unitID, unitDefID)
             unitDefsToTrack.economyUnitDefs[unitDefID])
     end
 end
--- Spring.GetTeamUnitDefCount
--- Spring.GetTeamUnitsByDefs
-function buildUnitDefs()
-    local function isEnergyProducer(unitDefId, unitDef)
-        return ((unitDef.customParams.unitgroup == 'metal') or (unitDef.customParams.unitgroup == 'energy')) or
-            (unitDef.customParams.energyconv_capacity and unitDef.customParams.energyconv_efficiency) or
-            (unitDef.buildSpeed and (unitDef.buildSpeed > 0))
-    end
-
-    unitDefsToTrack = {}
-    unitDefsToTrack.economyUnitDefs = {}
-
-    for unitDefID, unitDef in ipairs(UnitDefs) do
-        if isEnergyProducer(unitDefID, unitDef) then
-            unitDefsToTrack.economyUnitDefs[unitDefID] = { energyMake = unitDef.energyMake, metalMake = unitDef
-            .metalMake }
-        end
-    end
-end
-
 function widget:UnitFinished(unitID, unitDefID, unitTeam)
     if unitCache[unitTeam] then
         addToUnitCache(unitTeam, unitID, unitDefID)

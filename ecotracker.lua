@@ -29,22 +29,7 @@ local options = {
     staticWindValue = 14.2
 }
 
-function widget:Initialize()
-    -- viewScreenWidth, viewScreenHeight = Spring.GetViewGeometry()
-    buildUnitDefs()
-    buildUnitCache()
-end
-
-local lastGameUpdate = 0
-function widget:Update()
-    local gs = math.floor(Spring.GetGameSeconds())
-    if gs == lastGameUpdate then
-        return
-    end
-    lastGameUpdate = gs
-    calculateUnitData(unitCache, 0, "economyUnits", gs)
-end
-
+-- column configuration
 -- run test from 8:20 -> 23:00
 gamesecondscoldef = { name = "Game Seconds", unit = nil, valueFunc = nil }
 armfusEcoldef = { name = "Arm Fusion", unit = "armfus", valueProperty = "energyProducedOverTimeArray" }
@@ -59,64 +44,20 @@ local csvColumns = { gamesecondscoldef, armmohoMcoldef, armmakrMcoldef, armmmkrM
     armafusEcoldef, armfusEcoldef, armwinEcoldef,
     armnanotcMScoldef, armnanotcCcoldef }
 
-local function writeTableToCSV(filename, modelCacheDefs, coldefs)
-    local file = io.open(filename, "w")
-    if not file then
-        return false, "Failed to open file"
-    end
-
-    local headerRow = {}
-    for i, coldef in ipairs(coldefs) do
-        table.insert(headerRow, coldef.name)
-    end
-    file:write(table.concat(headerRow, ","), "\n")
-
-    local modelCacheDefsByName = {}
-    for _, v in pairs(modelCacheDefs) do
-        modelCacheDefsByName[v.name] = v
-    end
-
-    for _, sec in ipairs(unitModelCache.seconds) do
-        local values = {}
-        table.insert(values, sec) -- Add time as the first column
-
-        -- Process each column definition
-        for _, coldef in ipairs(coldefs) do
-            if coldef.valueProperty ~= nil then
-                local v = modelCacheDefsByName[coldef.unit] -- Fetch the correct unit directly
-                if v then
-                    local value = (v[coldef.valueProperty] and v[coldef.valueProperty][sec]) or 0
-                    table.insert(values, tostring(value))
-                else
-                    table.insert(values, "0") -- Default value if unit not found
-                end
-            end
-        end
-
-        -- Write the correctly formatted row
-        file:write(table.concat(values, ","), "\n")
-    end
-
-    file:close()
-    return true
+function widget:Initialize()
+    -- viewScreenWidth, viewScreenHeight = Spring.GetViewGeometry()
+    buildUnitDefs()
+    buildUnitCache()
 end
 
-lx = 0
-ly = 300
-rx = 50
-ry = 350
-function widget:MousePress(x, y, button)
-    if is_point_in_box(x, y, lx, ly, rx, ry) then
-        writeTableToCSV("LuaUI/Widgets/data.csv", unitModelCache.unitdefs, csvColumns)
-        unitModelCache.energyProduced = 0
-        unitModelCache.metalProduced = 0
-        for udid, value in pairs(unitModelCache.unitdefs) do
-            value.totalEnergyProduced = 0
-            value.totalEnergySpent = 0
-            value.totalMetalProduced = 0
-            value.totalMetalSpent = 0
-        end
+local lastGameUpdate = 0
+function widget:Update()
+    local gs = math.floor(Spring.GetGameSeconds())
+    if gs == lastGameUpdate then
+        return
     end
+    lastGameUpdate = gs
+    calculateUnitData(unitCache, 0, "economyUnits", gs)
 end
 
 function calculateUnitData(unitCache, teamID, cacheName, gameSecond)
@@ -156,8 +97,14 @@ function calculateUnitData(unitCache, teamID, cacheName, gameSecond)
                 unitModelCache.unitdefs[udid].count = #unitCache[teamID][cacheName].defs[udid]
 
                 if isWind(udid) then
-                    local windPower = (function() if options.staticWindValue > 0 then return options.staticWindValue else return
-                            select(4, Spring.GetWind()) end end)()
+                    local windPower = (function()
+                        if options.staticWindValue > 0 then
+                            return options.staticWindValue
+                        else
+                            return
+                                select(4, Spring.GetWind())
+                        end
+                    end)()
                     table.insert(unitModelCache.unitdefs[udid].energyProducedOverTimeArray, gameSecond,
                         windPower * unitModelCache.unitdefs[udid].count)
                     table.insert(unitModelCache.unitdefs[udid].energySpentOverTimeArray, gameSecond,
@@ -193,7 +140,7 @@ function calculateUnitData(unitCache, teamID, cacheName, gameSecond)
                             .lastSecondMetalSpent +
                             metalUse
                         unitModelCache.unitdefs[udid].totalMetalSpent = unitModelCache.unitdefs[udid].totalMetalSpent +
-                        metalUse
+                            metalUse
                         table.insert(unitModelCache.unitdefs[udid].metalProducedOverTimeArray, gameSecond,
                             unitModelCache.unitdefs[udid].lastSecondMetalProduced)
                         table.insert(unitModelCache.unitdefs[udid].metalSpentOverTimeArray, gameSecond,
@@ -455,6 +402,64 @@ function PrintSome(msg)
         end
     end
     printCountCurrent = printCountCurrent + 1
+end
+
+function writeTableToCSV(filename, modelCacheDefs, coldefs)
+    local file = io.open(filename, "w")
+    if not file then
+        return false, "Failed to open file"
+    end
+
+    local headerRow = {}
+    for i, coldef in ipairs(coldefs) do
+        table.insert(headerRow, coldef.name)
+    end
+    file:write(table.concat(headerRow, ","), "\n")
+
+    local modelCacheDefsByName = {}
+    for _, v in pairs(modelCacheDefs) do
+        modelCacheDefsByName[v.name] = v
+    end
+
+    for _, sec in ipairs(unitModelCache.seconds) do
+        local values = {}
+        table.insert(values, sec) -- Add time as the first column
+
+        -- Process each column definition
+        for _, coldef in ipairs(coldefs) do
+            if coldef.valueProperty ~= nil then
+                local v = modelCacheDefsByName[coldef.unit] -- Fetch the correct unit directly
+                if v then
+                    local value = (v[coldef.valueProperty] and v[coldef.valueProperty][sec]) or 0
+                    table.insert(values, tostring(value))
+                else
+                    table.insert(values, "0") -- Default value if unit not found
+                end
+            end
+        end
+        file:write(table.concat(values, ","), "\n")
+    end
+
+    file:close()
+    return true
+end
+
+local lx = 0
+local ly = 300
+local rx = 50
+local ry = 350
+function widget:MousePress(x, y, button)
+    if is_point_in_box(x, y, lx, ly, rx, ry) then
+        writeTableToCSV("LuaUI/Widgets/data.csv", unitModelCache.unitdefs, csvColumns)
+        unitModelCache.energyProduced = 0
+        unitModelCache.metalProduced = 0
+        for udid, value in pairs(unitModelCache.unitdefs) do
+            value.totalEnergyProduced = 0
+            value.totalEnergySpent = 0
+            value.totalMetalProduced = 0
+            value.totalMetalSpent = 0
+        end
+    end
 end
 
 ----- UTILITIES -----
